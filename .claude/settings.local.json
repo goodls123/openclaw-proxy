@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile main.py)",
+      "Bash(python -m py_compile utils.py config_manager.py key_manager.py ssh_tunnel.py ui.py)",
+      "Bash(python main.py --help)",
+      "Bash(python -c \"from config_manager import ConfigManager; cm = ConfigManager\\(''test_config.ini''\\); cm.load\\(\\); print\\(''Config file created successfully''\\)\")",
+      "Bash(rm -f test_config.ini)",
+      "Bash(python -c \"from config_manager import ConfigManager; cm = ConfigManager\\(''test_config.ini''\\); cm.save\\(\\); print\\(''Saved''\\)\")",
+      "Bash(python -m py_compile main.py ui.py config_manager.py ssh_tunnel.py key_manager.py utils.py)",
+      "Bash(python -m py_compile main.py ui.py utils.py config_manager.py ssh_tunnel.py key_manager.py)",
+      "Bash(python -m py_compile ui.py)",
+      "Bash(python -m py_compile ui.py ssh_tunnel.py config_manager.py)",
+      "Bash(pyinstaller build.spec --clean --noconfirm)",
+      "Bash(python -m py_compile ui.py config_manager.py)",
+      "Bash(python -c \"from key_manager import KeyManager; km = KeyManager\\(''test''\\); print\\(''OK''\\)\")",
+      "Bash(dir assetsimages:*)",
+      "Bash(file \"c:/Users/GoodLS/Desktop/openclaw-proxy/assets/images/\"*.ico)",
+      "Bash(xxd -l 16 \"c:/Users/GoodLS/Desktop/openclaw-proxy/assets/images/32.ico\")",
+      "Bash(python -c \"from PIL import Image; img = Image.open\\(''assets/images/openclaw.png''\\); print\\(f''Original size: {img.size}''\\)\")",
+      "Bash(python -m py_compile ssh_tunnel.py)",
+      "Bash(python main.py)"
+    ]
+  }
+}
