@@ -79,12 +79,12 @@ openclaw-proxy.exe --edit-config
 
 ```ini
 [ssh]
-host = 192.168.50.114
+host = localhost
 port = 22
-user = goodls
-local_bind_host = 127.0.0.1
+user = admin
+local_bind_host = localhost
 local_port = 18789
-remote_host = 127.0.0.1
+remote_host = localhost
 remote_port = 18789
 key_path = C:\Users\%USERNAME%\.ssh\openclaw_ed25519
 known_hosts = C:\Users\%USERNAME%\.ssh\known_hosts
@@ -96,7 +96,7 @@ compression = false
 
 [browser]
 auto_open = true
-url = http://127.0.0.1:18789
+url = http://localhost:18789
 open_timeout = 10
 
 [keygen]
