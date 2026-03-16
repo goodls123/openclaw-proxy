@@ -1,6 +1,8 @@
 
 # OpenClaw 代理工具
 
+![OpenClaw](assets/images/openclaw.png)
+
 一键启动 SSH 端口转发，并自动打开浏览器访问 OpenClaw 服务。
 
 该工具用于连接使用远程openclaw，大大简化 OpenClaw 的远程访问流程，通过自动化代理与浏览器拉起，帮助用户快速、稳定地连接并使用部署于独立主机或docker容器中的OpenClaw 服务。
@@ -133,6 +135,7 @@
 
 配置文件 `config.ini` 位于 EXE 同目录下。
 
+<<<<<<< HEAD
 ### 配置示例
 
     [ssh]
@@ -150,6 +153,29 @@
     server_alive_interval = 30
     server_alive_count_max = 3
     compression = false
+=======
+```ini
+[ssh]
+host = localhost
+port = 22
+user = admin
+local_bind_host = localhost
+local_port = 18789
+remote_host = localhost
+remote_port = 18789
+key_path = C:\Users\%USERNAME%\.ssh\openclaw_ed25519
+known_hosts = C:\Users\%USERNAME%\.ssh\known_hosts
+strict_host_key_checking = accept-new
+connect_timeout = 10
+server_alive_interval = 30
+server_alive_count_max = 3
+compression = false
+
+[browser]
+auto_open = true
+url = http://localhost:18789
+open_timeout = 10
+>>>>>>> 66dcfa8629292b9dfe3a62bc8998c0c1de17050c
 
     [browser]
     auto_open = true
