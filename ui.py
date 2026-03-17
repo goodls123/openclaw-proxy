@@ -21,7 +21,8 @@ from utils import (
     get_scaled_font_size,
     get_dpi_info,
 )
-from updater import check_for_update, UpdateCheckResult, GITHUB_RELEASES_URL
+from updater import check_for_update, check_for_update_force, UpdateCheckResult, GITHUB_RELEASES_URL
+from version import __version__
 
 logger = logging.getLogger("openclaw_proxy")
 
@@ -336,6 +337,12 @@ class ConfigWindow(tk.Toplevel):
         notebook.add(browser_frame, text="浏览器")
         self._create_browser_frame(browser_frame)
 
+        # 更新配置
+        update_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(update_frame, text="更新")
+        self._create_update_frame(update_frame)
+
+
 
         # 底部按钮
         btn_frame = ttk.Frame(main_frame)
@@ -439,6 +446,54 @@ class ConfigWindow(tk.Toplevel):
         self.open_timeout_var = tk.StringVar()
         ttk.Entry(parent, textvariable=self.open_timeout_var, width=10).grid(row=4, column=0, sticky=tk.W)
 
+    def _create_update_frame(self, parent):
+        """创建更新配置页"""
+        parent.columnconfigure(0, weight=1)
+
+        # 版本信息组
+        version_group = ttk.LabelFrame(parent, text="版本信息", padding=10)
+        version_group.grid(row=0, column=0, sticky="ew", pady=5)
+
+        ttk.Label(
+            version_group,
+            text=f"当前版本: {__version__}",
+            font=get_font(11)
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        # 更新设置组
+        settings_group = ttk.LabelFrame(parent, text="更新设置", padding=10)
+        settings_group.grid(row=1, column=0, sticky="ew", pady=10)
+
+        # 自动检查更新选项
+        self.auto_check_update_var = tk.BooleanVar()
+        ttk.Checkbutton(
+            settings_group,
+            text="启动时自动检查更新",
+            variable=self.auto_check_update_var
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        # 手动检查按钮
+        btn_frame = ttk.Frame(parent)
+        btn_frame.grid(row=2, column=0, pady=15)
+
+        self.check_update_btn = ttk.Button(
+            btn_frame,
+            text="立即检查更新",
+            command=self._manual_check_update,
+            width=15
+        )
+        self.check_update_btn.pack(side=tk.LEFT, padx=5)
+
+        # 检查状态标签（初始为空）
+        self.update_status_var = tk.StringVar()
+        self.update_status_label = ttk.Label(
+            parent,
+            textvariable=self.update_status_var,
+            font=get_font(9),
+            foreground="gray"
+        )
+        self.update_status_label.grid(row=3, column=0, pady=5)
+
     def _load_config(self):
         config = self.config_manager.config
 
@@ -460,6 +515,9 @@ class ConfigWindow(tk.Toplevel):
         # 加载端口映射
         if config.ssh.port_mappings:
             self.port_mapping_frame.set_mappings(config.ssh.port_mappings)
+
+        # 加载更新配置
+        self.auto_check_update_var.set(config.update.auto_check)
 
         # 更新密钥显示
         self._update_key_display()
@@ -489,6 +547,9 @@ class ConfigWindow(tk.Toplevel):
         config.browser.url = self.browser_url_var.get().strip()
         config.browser.open_timeout = int(self.open_timeout_var.get() or 10)
 
+        # 保存更新配置
+        config.update.auto_check = self.auto_check_update_var.get()
+
     def _on_save(self):
         self._save_config()
         if self.config_manager.save():
@@ -515,6 +576,56 @@ class ConfigWindow(tk.Toplevel):
                 messagebox.showinfo("成功", "已恢复备份配置", parent=self)
             else:
                 messagebox.showerror("错误", "恢复备份失败", parent=self)
+
+    def _manual_check_update(self):
+        """手动检查更新"""
+        self.check_update_btn.config(state="disabled")
+        self.update_status_var.set("正在检查更新...")
+
+        def do_check():
+            try:
+                config_dir = os.path.dirname(self.config_manager.config_file)
+                # 使用强制检查，忽略24小时间隔
+                result = check_for_update_force(config_dir)
+                self.after(0, lambda: self._on_update_check_complete(result))
+            except Exception as e:
+                logger.debug(f"更新检查异常: {e}")
+                self.after(0, lambda: self._on_update_check_error(str(e)))
+
+        threading.Thread(target=do_check, daemon=True).start()
+
+    def _on_update_check_complete(self, result: UpdateCheckResult):
+        """更新检查完成回调"""
+        self.check_update_btn.config(state="normal")
+
+        if result.error:
+            self.update_status_var.set(f"检查失败: {result.error}")
+            messagebox.showerror(
+                "检查更新",
+                f"检查更新失败:\n{result.error}",
+                parent=self
+            )
+        elif result.has_update:
+            self.update_status_var.set(f"发现新版本: {result.latest_version}")
+            # 显示更新对话框
+            UpdateDialog(self, result)
+        else:
+            self.update_status_var.set("当前已是最新版本")
+            messagebox.showinfo(
+                "检查更新",
+                f"当前已是最新版本 ({__version__})",
+                parent=self
+            )
+
+    def _on_update_check_error(self, error: str):
+        """更新检查错误回调"""
+        self.check_update_btn.config(state="normal")
+        self.update_status_var.set(f"检查失败: {error}")
+        messagebox.showerror(
+            "检查更新",
+            f"检查更新失败:\n{error}",
+            parent=self
+        )
 
     def _update_key_display(self):
         """更新密钥显示状态（仅显示文件名）"""
@@ -1407,6 +1518,10 @@ class MainWindow:
 
     def _check_update_async(self):
         """异步检查更新"""
+        # 检查是否启用自动检查
+        if not self.config_manager.config.update.auto_check:
+            return
+
         def do_check():
             try:
                 config_dir = os.path.dirname(self.config_manager.config_file)

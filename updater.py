@@ -216,3 +216,59 @@ def check_for_update(config_dir: str) -> UpdateCheckResult:
         release_info=release_info if has_update else None,
         error=None,
     )
+
+
+def check_for_update_force(config_dir: str) -> UpdateCheckResult:
+    """
+    强制检查是否有更新（忽略24小时间隔限制）
+
+    用于手动触发更新检查
+
+    Args:
+        config_dir: 配置目录路径
+
+    Returns:
+        UpdateCheckResult
+    """
+    # 记录检查时间
+    record_check_time(config_dir)
+
+    # 获取最新版本
+    success, release_info, error = fetch_latest_release()
+
+    if not success:
+        logger.warning(f"检查更新失败: {error}")
+        return UpdateCheckResult(
+            has_update=False,
+            current_version=__version__,
+            latest_version=None,
+            release_info=None,
+            error=error,
+        )
+
+    if not release_info:
+        return UpdateCheckResult(
+            has_update=False,
+            current_version=__version__,
+            latest_version=None,
+            release_info=None,
+            error="无法获取版本信息",
+        )
+
+    # 比较版本
+    comparison = compare_versions(__version__, release_info.version)
+    has_update = comparison < 0
+
+    if has_update:
+        logger.info(f"发现新版本: {release_info.version} (当前: {__version__})")
+    else:
+        logger.info(f"已是最新版本: {__version__}")
+
+    # 即使没有更新，也返回 release_info（用于显示当前是最新版本）
+    return UpdateCheckResult(
+        has_update=has_update,
+        current_version=__version__,
+        latest_version=release_info.version,
+        release_info=release_info if has_update else None,
+        error=None,
+    )

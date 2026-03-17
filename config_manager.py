@@ -90,12 +90,19 @@ class AppConfig:
 
 
 @dataclass
+class UpdateConfig:
+    """更新配置"""
+    auto_check: bool = True  # 是否自动检查更新
+
+
+@dataclass
 class Config:
     """完整配置"""
     ssh: SSHConfig = field(default_factory=SSHConfig)
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     keygen: KeygenConfig = field(default_factory=KeygenConfig)
     app: AppConfig = field(default_factory=AppConfig)
+    update: UpdateConfig = field(default_factory=UpdateConfig)
 
 
 class ConfigManager:
@@ -162,6 +169,13 @@ class ConfigManager:
             self.config.app = AppConfig(
                 log_level=app.get("log_level", "INFO"),
                 log_dir=app.get("log_dir", "logs"),
+            )
+
+        # 读取更新配置
+        if "update" in self._parser:
+            update = self._parser["update"]
+            self.config.update = UpdateConfig(
+                auto_check=update.getboolean("auto_check", True),
             )
 
         # 读取多端口映射配置
@@ -262,6 +276,10 @@ class ConfigManager:
             self._parser["app"] = {
                 "log_level": self.config.app.log_level,
                 "log_dir": self.config.app.log_dir,
+            }
+
+            self._parser["update"] = {
+                "auto_check": str(self.config.update.auto_check).lower(),
             }
 
             # 保存多端口映射配置
