@@ -22,6 +22,7 @@ from utils import setup_logging, check_ssh_available, can_connect, expand_path
 from config_manager import ConfigManager
 from key_manager import KeyManager
 from ssh_tunnel import SSHTunnel
+from version import __version__
 
 # 全局变量
 logger: Optional[logging.Logger] = None
@@ -232,6 +233,7 @@ def main():
     logger = setup_logging(log_level, log_dir)
     logger.info("=" * 50)
     logger.info("OpenClaw代理工具启动")
+    logger.info(f"版本: {__version__}")
     logger.info(f"Python版本: {sys.version}")
     logger.info(f"平台: {sys.platform}")
     logger.info(f"配置目录: {user_config_dir}")

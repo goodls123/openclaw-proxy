@@ -263,10 +263,15 @@ class KeyManager:
                     password=password,
                     timeout=30,
                     banner_timeout=30,
-                    auth_timeout=30,
+                    auth_timeout=60,  # 增加认证超时
                     allow_agent=False,
                     look_for_keys=False,
                 )
+
+                # 启用SSH保活机制，防止连接被服务器关闭
+                transport = client.get_transport()
+                if transport:
+                    transport.set_keepalive(10)  # 每10秒发送保活包
             except paramiko.ssh_exception.SSHException as e:
                 if "Error reading SSH protocol banner" in str(e):
                     return KeyDeployResult(
@@ -322,19 +327,52 @@ class KeyManager:
 
             report("正在部署公钥...")
 
-            # 追加公钥
+            # 追加公钥（带重试机制）
             append_cmd = f'echo "{public_key}" >> ~/.ssh/authorized_keys'
-            stdin, stdout, stderr = client.exec_command(append_cmd)
-            exit_status = stdout.channel.recv_exit_status()
+            max_retries = 3
+            last_error = None
 
-            if exit_status != 0:
-                error = stderr.read().decode("utf-8")
-                client.close()
-                return KeyDeployResult(
-                    success=False,
-                    message="写入authorized_keys失败",
-                    error_detail=error,
-                )
+            for attempt in range(max_retries):
+                try:
+                    stdin, stdout, stderr = client.exec_command(append_cmd)
+                    exit_status = stdout.channel.recv_exit_status()
+
+                    if exit_status != 0:
+                        error = stderr.read().decode("utf-8")
+                        client.close()
+                        return KeyDeployResult(
+                            success=False,
+                            message="写入authorized_keys失败",
+                            error_detail=error,
+                        )
+                    break  # 成功则退出重试循环
+                except Exception as cmd_error:
+                    last_error = cmd_error
+                    if attempt < max_retries - 1:
+                        report(f"命令执行失败，正在重试 ({attempt + 2}/{max_retries})...")
+                        # 检查连接是否仍然活跃
+                        transport = client.get_transport()
+                        if not transport or not transport.is_active():
+                            report("连接已断开，正在重新连接...")
+                            client.close()
+                            client = paramiko.SSHClient()
+                            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            client.connect(
+                                hostname=host,
+                                port=port,
+                                username=user,
+                                password=password,
+                                timeout=30,
+                                banner_timeout=30,
+                                auth_timeout=60,
+                                allow_agent=False,
+                                look_for_keys=False,
+                            )
+                            new_transport = client.get_transport()
+                            if new_transport:
+                                new_transport.set_keepalive(10)
+                    else:
+                        raise last_error
 
             # 设置权限
             report("正在设置权限...")
@@ -362,6 +400,30 @@ class KeyManager:
                 message=f"SSH连接错误",
                 error_detail=str(e),
             )
+        except OSError as e:
+            # 处理网络相关的错误（如连接被重置、超时等）
+            error_code = getattr(e, 'winerror', getattr(e, 'errno', None))
+            if error_code == 10054 or 'connection reset' in str(e).lower():
+                report("连接被服务器重置，可能是网络不稳定或服务器超时")
+                return KeyDeployResult(
+                    success=False,
+                    message="连接被服务器重置，请检查网络连接或稍后重试",
+                    error_detail=str(e),
+                )
+            elif 'timeout' in str(e).lower():
+                report("连接超时")
+                return KeyDeployResult(
+                    success=False,
+                    message="连接超时，请检查服务器是否可达",
+                    error_detail=str(e),
+                )
+            else:
+                report(f"网络错误: {str(e)}")
+                return KeyDeployResult(
+                    success=False,
+                    message="网络连接错误",
+                    error_detail=str(e),
+                )
         except Exception as e:
             report(f"部署异常: {str(e)}")
             return KeyDeployResult(

@@ -54,7 +54,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='养虾代理',
+    name='虾代理',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

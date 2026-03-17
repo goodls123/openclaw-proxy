@@ -19,7 +19,8 @@
       "Bash(xxd -l 16 \"c:/Users/GoodLS/Desktop/openclaw-proxy/assets/images/32.ico\")",
       "Bash(python -c \"from PIL import Image; img = Image.open\\(''assets/images/openclaw.png''\\); print\\(f''Original size: {img.size}''\\)\")",
       "Bash(python -m py_compile ssh_tunnel.py)",
-      "Bash(python main.py)"
+      "Bash(python main.py)",
+      "Bash(python -m py_compile version.py updater.py main.py ui.py)"
     ]
   }
 }

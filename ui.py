@@ -21,6 +21,7 @@ from utils import (
     get_scaled_font_size,
     get_dpi_info,
 )
+from updater import check_for_update, UpdateCheckResult, GITHUB_RELEASES_URL
 
 logger = logging.getLogger("openclaw_proxy")
 
@@ -941,6 +942,9 @@ class MainWindow:
         # 居中显示
         self._center_window(800, 460)
 
+        # 启动时后台检查更新
+        self._check_update_async()
+
     def _center_window(self, width: int, height: int):
         self.root.update_idletasks()
         screen_width = self.root.winfo_screenwidth()
@@ -1227,6 +1231,23 @@ class MainWindow:
         """打开配置窗口"""
         ConfigWindow(self.root, self.config_manager, on_save=self._check_prerequisites)
 
+    def _check_update_async(self):
+        """异步检查更新"""
+        def do_check():
+            try:
+                config_dir = os.path.dirname(self.config_manager.config_file)
+                result = check_for_update(config_dir)
+                if result.has_update:
+                    self.root.after(0, lambda: self._show_update_dialog(result))
+            except Exception as e:
+                logger.debug(f"更新检查异常: {e}")
+
+        threading.Thread(target=do_check, daemon=True).start()
+
+    def _show_update_dialog(self, result: UpdateCheckResult):
+        """显示更新对话框"""
+        UpdateDialog(self.root, result)
+
     def _on_close(self):
         if self.tunnel:
             self.tunnel.stop()
@@ -1235,3 +1256,97 @@ class MainWindow:
 
     def run(self):
         self.root.mainloop()
+
+
+class UpdateDialog(tk.Toplevel):
+    """更新提示对话框"""
+
+    def __init__(self, parent, result: UpdateCheckResult):
+        super().__init__(parent)
+        self.result = result
+        self.title("发现新版本")
+        self.transient(parent)
+        self.grab_set()
+        self.resizable(False, False)
+        _set_window_icon(self)
+
+        self._create_widgets()
+        self._center_window()
+
+    def _center_window(self):
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = self.master.winfo_x() + (self.master.winfo_width() - width) // 2
+        y = self.master.winfo_y() + (self.master.winfo_height() - height) // 2
+        self.geometry(f"+{x}+{y}")
+
+    def _create_widgets(self):
+        main_frame = ttk.Frame(self, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 标题
+        title_label = ttk.Label(
+            main_frame,
+            text="有新版本可用!",
+            font=get_font(14, bold=True),
+            foreground="green"
+        )
+        title_label.pack(pady=(0, 15))
+
+        # 版本信息
+        version_frame = ttk.Frame(main_frame)
+        version_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(
+            version_frame,
+            text=f"当前版本: {self.result.current_version}",
+            font=get_font(10)
+        ).pack()
+        ttk.Label(
+            version_frame,
+            text=f"最新版本: {self.result.latest_version}",
+            font=get_font(11, bold=True),
+            foreground="blue"
+        ).pack(pady=(5, 0))
+
+        # 更新说明（如果有）
+        if self.result.release_info and self.result.release_info.body:
+            notes_frame = ttk.LabelFrame(main_frame, text="更新说明", padding=10)
+            notes_frame.pack(fill=tk.BOTH, expand=True, pady=(15, 5))
+
+            # 使用Text组件显示多行文本
+            notes_text = tk.Text(
+                notes_frame,
+                width=50,
+                height=8,
+                wrap=tk.WORD,
+                font=get_font(9)
+            )
+            notes_text.insert(tk.END, self.result.release_info.body[:500])  # 限制长度
+            notes_text.config(state=tk.DISABLED)
+            notes_text.pack(fill=tk.BOTH, expand=True)
+
+        # 按钮
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(pady=(20, 0))
+
+        ttk.Button(
+            btn_frame,
+            text="前往下载",
+            command=self._go_download,
+            width=12
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            btn_frame,
+            text="稍后提醒",
+            command=self.destroy,
+            width=12
+        ).pack(side=tk.LEFT, padx=5)
+
+    def _go_download(self):
+        """打开下载页面"""
+        url = self.result.release_info.url if self.result.release_info else GITHUB_RELEASES_URL
+        webbrowser.open(url)
+        self.destroy()
