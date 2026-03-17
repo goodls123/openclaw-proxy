@@ -18,6 +18,7 @@ from utils import (
     expand_path,
     ensure_dir,
 )
+from config_manager import PortMapping
 
 logger = logging.getLogger("openclaw_proxy")
 
@@ -30,17 +31,18 @@ class SSHTunnel:
         host: str,
         port: int,
         user: str,
-        local_bind_host: str,
-        local_port: int,
-        remote_host: str,
-        remote_port: int,
-        key_path: str,
+        local_bind_host: str = "127.0.0.1",
+        local_port: int = 18789,
+        remote_host: str = "127.0.0.1",
+        remote_port: int = 18789,
+        key_path: str = "",
         known_hosts: str = "",
         strict_host_key_checking: str = "accept-new",
         connect_timeout: int = 10,
         server_alive_interval: int = 30,
         server_alive_count_max: int = 3,
         compression: bool = False,
+        port_mappings: Optional[list[PortMapping]] = None,
     ):
         """
         初始化SSH隧道
@@ -49,10 +51,10 @@ class SSHTunnel:
             host: SSH服务器地址
             port: SSH端口
             user: 用户名
-            local_bind_host: 本地绑定地址
-            local_port: 本地端口
-            remote_host: 远程目标地址
-            remote_port: 远程目标端口
+            local_bind_host: 本地绑定地址（向后兼容）
+            local_port: 本地端口（向后兼容）
+            remote_host: 远程目标地址（向后兼容）
+            remote_port: 远程目标端口（向后兼容）
             key_path: 私钥文件路径
             known_hosts: 已知主机文件路径
             strict_host_key_checking: 主机密钥校验策略
@@ -60,14 +62,11 @@ class SSHTunnel:
             server_alive_interval: 保活间隔
             server_alive_count_max: 保活失败次数
             compression: 是否启用压缩
+            port_mappings: 多端口映射列表
         """
         self.host = host
         self.port = port
         self.user = user
-        self.local_bind_host = local_bind_host
-        self.local_port = local_port
-        self.remote_host = remote_host
-        self.remote_port = remote_port
         self.key_path = expand_path(key_path)
         self.known_hosts = expand_path(known_hosts) if known_hosts else ""
         self.strict_host_key_checking = strict_host_key_checking
@@ -75,6 +74,26 @@ class SSHTunnel:
         self.server_alive_interval = server_alive_interval
         self.server_alive_count_max = server_alive_count_max
         self.compression = compression
+
+        # 处理端口映射
+        if port_mappings:
+            self.port_mappings = port_mappings
+        else:
+            # 向后兼容：从单一参数创建
+            self.port_mappings = [
+                PortMapping(
+                    local_bind_host=local_bind_host,
+                    local_port=local_port,
+                    remote_host=remote_host,
+                    remote_port=remote_port,
+                )
+            ]
+
+        # 保留旧属性以兼容
+        self.local_bind_host = self.port_mappings[0].local_bind_host if self.port_mappings else local_bind_host
+        self.local_port = self.port_mappings[0].local_port if self.port_mappings else local_port
+        self.remote_host = self.port_mappings[0].remote_host if self.port_mappings else remote_host
+        self.remote_port = self.port_mappings[0].remote_port if self.port_mappings else remote_port
 
         self._process: Optional[subprocess.Popen] = None
         self._running = False
@@ -115,9 +134,10 @@ class SSHTunnel:
         if not os.path.exists(self.key_path):
             return False, f"私钥文件不存在: {self.key_path}\n请先生成并部署SSH密钥"
 
-        # 检查本地端口是否被占用
-        if can_connect(self.local_bind_host, self.local_port, timeout=0.5):
-            return False, f"本地端口 {self.local_port} 已被占用"
+        # 检查所有本地端口是否被占用
+        for mapping in self.port_mappings:
+            if can_connect(mapping.local_bind_host, mapping.local_port, timeout=0.5):
+                return False, f"本地端口 {mapping.local_port} 已被占用"
 
         return True, ""
 
@@ -131,14 +151,23 @@ class SSHTunnel:
         cmd = [
             "ssh",
             "-N",  # 不执行远程命令
-            "-L", f"{self.local_bind_host}:{self.local_port}:{self.remote_host}:{self.remote_port}",
+        ]
+
+        # 添加所有端口映射
+        for mapping in self.port_mappings:
+            cmd.extend([
+                "-L",
+                f"{mapping.local_bind_host}:{mapping.local_port}:{mapping.remote_host}:{mapping.remote_port}"
+            ])
+
+        cmd.extend([
             "-p", str(self.port),
             "-i", self.key_path,
             "-o", f"StrictHostKeyChecking={self.strict_host_key_checking}",
             "-o", f"ConnectTimeout={self.connect_timeout}",
             "-o", f"ServerAliveInterval={self.server_alive_interval}",
             "-o", f"ServerAliveCountMax={self.server_alive_count_max}",
-        ]
+        ])
 
         # 添加known_hosts配置
         if self.known_hosts:
@@ -235,10 +264,16 @@ class SSHTunnel:
                 logger.error(f"SSH进程已退出: {stderr}")
                 return False, f"SSH进程意外退出: {stderr[:200] if stderr else '未知错误'}"
 
-            # 检测本地端口
-            if can_connect(self.local_bind_host, self.local_port, timeout=1):
-                logger.info("隧道连接已建立")
-                return True, "隧道连接已建立"
+            # 检测所有本地端口
+            all_connected = True
+            for mapping in self.port_mappings:
+                if not can_connect(mapping.local_bind_host, mapping.local_port, timeout=1):
+                    all_connected = False
+                    break
+
+            if all_connected:
+                logger.info(f"隧道连接已建立 ({len(self.port_mappings)} 个映射)")
+                return True, f"隧道连接已建立 ({len(self.port_mappings)} 个映射)"
 
             time.sleep(check_interval)
 

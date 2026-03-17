@@ -11,6 +11,32 @@ from utils import get_default_key_path, get_default_ssh_dir
 
 
 @dataclass
+class PortMapping:
+    """单个端口映射配置"""
+    local_bind_host: str = "127.0.0.1"  # 本地绑定地址
+    local_port: int = 18789             # 本地端口
+    remote_host: str = "127.0.0.1"      # 远程目标地址
+    remote_port: int = 18789            # 远程目标端口
+
+    def to_string(self) -> str:
+        """序列化为配置字符串：本地地址:本地端口:远程地址:远程端口"""
+        return f"{self.local_bind_host}:{self.local_port}:{self.remote_host}:{self.remote_port}"
+
+    @classmethod
+    def from_string(cls, s: str) -> "PortMapping":
+        """从配置字符串解析"""
+        parts = s.strip().split(":")
+        if len(parts) == 4:
+            return cls(
+                local_bind_host=parts[0],
+                local_port=int(parts[1]),
+                remote_host=parts[2],
+                remote_port=int(parts[3]),
+            )
+        raise ValueError(f"无效的端口映射格式: {s}")
+
+
+@dataclass
 class SSHConfig:
     """SSH连接配置"""
     host: str = "localhost"
@@ -27,6 +53,8 @@ class SSHConfig:
     server_alive_interval: int = 30
     server_alive_count_max: int = 3
     compression: bool = False
+    # 多端口映射列表
+    port_mappings: list[PortMapping] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.key_path:
@@ -136,6 +164,33 @@ class ConfigManager:
                 log_dir=app.get("log_dir", "logs"),
             )
 
+        # 读取多端口映射配置
+        if "port_mappings" in self._parser:
+            mappings_str = self._parser["port_mappings"].get("mappings", "")
+            if mappings_str.strip():
+                self.config.ssh.port_mappings = []
+                for mapping_str in mappings_str.split(";"):
+                    mapping_str = mapping_str.strip()
+                    if mapping_str:
+                        try:
+                            self.config.ssh.port_mappings.append(
+                                PortMapping.from_string(mapping_str)
+                            )
+                        except ValueError as e:
+                            # 忽略无效的映射配置
+                            pass
+
+        # 向后兼容：如果没有 port_mappings 但有旧的端口配置，自动迁移
+        if not self.config.ssh.port_mappings and self.config.ssh.local_port:
+            self.config.ssh.port_mappings = [
+                PortMapping(
+                    local_bind_host=self.config.ssh.local_bind_host,
+                    local_port=self.config.ssh.local_port,
+                    remote_host=self.config.ssh.remote_host,
+                    remote_port=self.config.ssh.remote_port,
+                )
+            ]
+
         return self.config
 
     def _backup_config(self) -> bool:
@@ -207,6 +262,12 @@ class ConfigManager:
             self._parser["app"] = {
                 "log_level": self.config.app.log_level,
                 "log_dir": self.config.app.log_dir,
+            }
+
+            # 保存多端口映射配置
+            mappings_str = ";".join([m.to_string() for m in self.config.ssh.port_mappings])
+            self._parser["port_mappings"] = {
+                "mappings": mappings_str,
             }
 
             with open(self.config_file, "w", encoding="utf-8") as f:

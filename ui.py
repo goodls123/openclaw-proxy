@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 
-from config_manager import ConfigManager
+from config_manager import ConfigManager, PortMapping
 from key_manager import KeyManager
 from ssh_tunnel import SSHTunnel
 from utils import (
@@ -88,6 +88,200 @@ def get_font(size: int = 10, bold: bool = False) -> tuple:
     scaled_size = get_scaled_font_size(size)
     weight = "bold" if bold else "normal"
     return (DEFAULT_FONT_FAMILY, scaled_size, weight)
+
+
+class PortMappingFrame(ttk.LabelFrame):
+    """端口映射列表管理组件"""
+
+    def __init__(self, parent, on_change: Optional[Callable] = None):
+        super().__init__(parent, text="端口映射", padding=8)
+        self.on_change = on_change
+        self.mapping_rows: list[dict] = []  # 存储每行的控件和变量
+        self._create_widgets()
+
+    def _create_widgets(self):
+        """创建组件"""
+        # 表头：远程地址 | 远程端口 | 本地端口 | 操作
+        header_frame = ttk.Frame(self)
+        header_frame.pack(fill=tk.X, pady=(0, 5))
+
+        headers = ["远程地址", "远程端口", "本地端口", "操作"]
+        widths = [14, 10, 10, 6]
+        for col, (header, width) in enumerate(zip(headers, widths)):
+            ttk.Label(header_frame, text=header, font=get_font(9, bold=True), width=width).grid(
+                row=0, column=col, padx=2
+            )
+        # "+" 按钮用于快速添加映射
+        ttk.Button(header_frame, text="+", width=3, command=self._add_mapping).grid(row=0, column=len(headers), padx=2)
+
+        # 映射列表区域（带滚动条）
+        list_frame = ttk.Frame(self)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 使用 Canvas 和 Frame 实现滚动
+        self.canvas = tk.Canvas(list_frame, highlightthickness=0, height=120)
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.canvas.yview)
+        self.scroll_frame = ttk.Frame(self.canvas)
+
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
+        self.scroll_frame.bind("<Configure>", self._on_frame_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+
+        # 按钮区域
+        btn_frame = ttk.Frame(self)
+        btn_frame.pack(fill=tk.X, pady=(8, 0))
+
+        ttk.Button(btn_frame, text="添加映射", command=self._add_mapping, width=10).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="添加常用", command=self._show_presets, width=10).pack(side=tk.LEFT, padx=2)
+
+    def _on_frame_configure(self, event=None):
+        """更新滚动区域"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event):
+        """调整内部框架宽度"""
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
+    def _add_mapping(self, mapping: Optional[PortMapping] = None):
+        """添加一行映射配置"""
+        if mapping is None:
+            mapping = PortMapping()
+
+        row_index = len(self.mapping_rows)
+
+        # 创建变量（本地地址固定为 127.0.0.1）
+        local_port_var = tk.StringVar(value=str(mapping.local_port))
+        remote_host_var = tk.StringVar(value=mapping.remote_host)
+        remote_port_var = tk.StringVar(value=str(mapping.remote_port))
+
+        vars_dict = {
+            "local_host": tk.StringVar(value="127.0.0.1"),  # 固定本地地址
+            "local_port": local_port_var,
+            "remote_host": remote_host_var,
+            "remote_port": remote_port_var,
+            "row_index": row_index,
+            "row_frame": None,  # 稍后设置
+        }
+        self.mapping_rows.append(vars_dict)
+
+        # 创建控件：远程地址 | 远程端口 | 本地端口 | 操作
+        row_frame = ttk.Frame(self.scroll_frame)
+        row_frame.grid(row=row_index, column=0, sticky="ew", pady=2)
+        vars_dict["row_frame"] = row_frame
+
+        ttk.Entry(row_frame, textvariable=remote_host_var, width=14).grid(row=0, column=0, padx=2)
+        ttk.Entry(row_frame, textvariable=remote_port_var, width=10).grid(row=0, column=1, padx=2)
+        ttk.Entry(row_frame, textvariable=local_port_var, width=10).grid(row=0, column=2, padx=2)
+
+        # 删除按钮
+        ttk.Button(row_frame, text="删除", width=5,
+                   command=lambda: self._remove_mapping(vars_dict)).grid(row=0, column=3, padx=2)
+
+        # 更新滚动区域
+        self._on_frame_configure()
+
+        if self.on_change:
+            self.on_change()
+
+    def _remove_mapping(self, vars_dict: dict):
+        """删除一行映射"""
+        # 找到对应的 row_frame 并销毁
+        for widget in self.scroll_frame.winfo_children():
+            if widget.grid_info().get("row") == vars_dict["row_index"]:
+                widget.destroy()
+                break
+
+        self.mapping_rows.remove(vars_dict)
+        self._refresh_row_indices()
+
+        if self.on_change:
+            self.on_change()
+
+    def _refresh_row_indices(self):
+        """刷新行索引"""
+        for i, vars_dict in enumerate(self.mapping_rows):
+            vars_dict["row_index"] = i
+
+    def _show_presets(self):
+        """显示常用端口映射预设"""
+        presets = [
+            ("HTTP (80)", PortMapping("127.0.0.1", 80, "127.0.0.1", 80)),
+            ("HTTPS (443)", PortMapping("127.0.0.1", 443, "127.0.0.1", 443)),
+            ("MySQL (3306)", PortMapping("127.0.0.1", 3306, "127.0.0.1", 3306)),
+            ("PostgreSQL (5432)", PortMapping("127.0.0.1", 5432, "127.0.0.1", 5432)),
+            ("Redis (6379)", PortMapping("127.0.0.1", 6379, "127.0.0.1", 6379)),
+            ("MongoDB (27017)", PortMapping("127.0.0.1", 27017, "127.0.0.1", 27017)),
+        ]
+
+        # 创建预设选择对话框
+        dialog = tk.Toplevel(self)
+        dialog.title("选择预设")
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        _set_window_icon(dialog)
+
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="选择要添加的预设映射:", font=get_font(10, bold=True)).grid(
+            row=0, column=0, columnspan=2, pady=(0, 10)
+        )
+
+        for i, (name, mapping) in enumerate(presets):
+            ttk.Button(
+                frame, text=name, width=20,
+                command=lambda m=mapping, d=dialog: self._add_preset(m, d)
+            ).grid(row=i + 1, column=0, columnspan=2, pady=2)
+
+        ttk.Button(frame, text="取消", width=20, command=dialog.destroy).grid(
+            row=len(presets) + 1, column=0, columnspan=2, pady=(10, 0)
+        )
+
+    def _add_preset(self, mapping: PortMapping, dialog: tk.Toplevel):
+        """添加预设映射"""
+        self._add_mapping(mapping)
+        dialog.destroy()
+
+    def get_mappings(self) -> list[PortMapping]:
+        """获取所有端口映射"""
+        mappings = []
+        for vars_dict in self.mapping_rows:
+            try:
+                local_port = int(vars_dict["local_port"].get() or 0)
+                remote_port = int(vars_dict["remote_port"].get() or 0)
+                if local_port > 0 and remote_port > 0:
+                    mapping = PortMapping(
+                        local_bind_host="127.0.0.1",  # 固定本地地址
+                        local_port=local_port,
+                        remote_host=vars_dict["remote_host"].get().strip() or "127.0.0.1",
+                        remote_port=remote_port,
+                    )
+                    mappings.append(mapping)
+            except ValueError:
+                pass  # 忽略无效的端口
+        return mappings
+
+    def set_mappings(self, mappings: list[PortMapping]):
+        """设置端口映射列表"""
+        # 清空现有行
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+        self.mapping_rows.clear()
+
+        # 添加新映射
+        for mapping in mappings:
+            self._add_mapping(mapping)
+
+    def clear(self):
+        """清空所有映射"""
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+        self.mapping_rows.clear()
 
 
 class ConfigWindow(tk.Toplevel):
@@ -189,26 +383,9 @@ class ConfigWindow(tk.Toplevel):
         # 测试按钮
         ttk.Button(key_frame, text="测试", command=self._test_connection, width=6).grid(row=0, column=2, padx=2)
 
-        # 端口转发配置
-        forward_group = ttk.LabelFrame(parent, text="端口转发", padding=8)
-        forward_group.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
-        forward_group.columnconfigure(1, weight=1)
-
-        ttk.Label(forward_group, text="本地监听地址:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.local_bind_host_var = tk.StringVar()
-        ttk.Entry(forward_group, textvariable=self.local_bind_host_var).grid(row=0, column=1, sticky="ew", pady=2)
-
-        ttk.Label(forward_group, text="本地端口:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        self.local_port_var = tk.StringVar()
-        ttk.Entry(forward_group, textvariable=self.local_port_var, width=10).grid(row=1, column=1, sticky=tk.W, pady=2)
-
-        ttk.Label(forward_group, text="远程目标地址:").grid(row=2, column=0, sticky=tk.W, pady=2)
-        self.remote_host_var = tk.StringVar()
-        ttk.Entry(forward_group, textvariable=self.remote_host_var).grid(row=2, column=1, sticky="ew", pady=2)
-
-        ttk.Label(forward_group, text="远程端口:").grid(row=3, column=0, sticky=tk.W, pady=2)
-        self.remote_port_var = tk.StringVar()
-        ttk.Entry(forward_group, textvariable=self.remote_port_var, width=10).grid(row=3, column=1, sticky=tk.W, pady=2)
+        # 端口转发配置（多端口映射）
+        self.port_mapping_frame = PortMappingFrame(parent, on_change=self._on_mapping_change)
+        self.port_mapping_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
 
     def _create_security_frame(self, parent):
         parent.columnconfigure(1, weight=1)
@@ -268,10 +445,6 @@ class ConfigWindow(tk.Toplevel):
         self.host_var.set(config.ssh.host)
         self.port_var.set(str(config.ssh.port))
         self.user_var.set(config.ssh.user)
-        self.local_bind_host_var.set(config.ssh.local_bind_host)
-        self.local_port_var.set(str(config.ssh.local_port))
-        self.remote_host_var.set(config.ssh.remote_host)
-        self.remote_port_var.set(str(config.ssh.remote_port))
 
         self.key_path_var.set(config.ssh.key_path)
         self.known_hosts_var.set(config.ssh.known_hosts)
@@ -284,8 +457,17 @@ class ConfigWindow(tk.Toplevel):
         self.browser_url_var.set(config.browser.url)
         self.open_timeout_var.set(str(config.browser.open_timeout))
 
+        # 加载端口映射
+        if config.ssh.port_mappings:
+            self.port_mapping_frame.set_mappings(config.ssh.port_mappings)
+
         # 更新密钥显示
         self._update_key_display()
+
+
+    def _on_mapping_change(self):
+        """端口映射变更时的回调"""
+        pass
 
     def _save_config(self):
         config = self.config_manager.config
@@ -293,17 +475,15 @@ class ConfigWindow(tk.Toplevel):
         config.ssh.host = self.host_var.get().strip()
         config.ssh.port = int(self.port_var.get() or 22)
         config.ssh.user = self.user_var.get().strip()
-        config.ssh.local_bind_host = self.local_bind_host_var.get().strip()
-        config.ssh.local_port = int(self.local_port_var.get() or 18789)
-        config.ssh.remote_host = self.remote_host_var.get().strip()
-        config.ssh.remote_port = int(self.remote_port_var.get() or 18789)
-
         config.ssh.key_path = self.key_path_var.get().strip()
         config.ssh.known_hosts = self.known_hosts_var.get().strip()
         config.ssh.strict_host_key_checking = self.strict_host_key_var.get()
         config.ssh.connect_timeout = int(self.connect_timeout_var.get() or 10)
         config.ssh.server_alive_interval = int(self.alive_interval_var.get() or 30)
         config.ssh.compression = self.compression_var.get()
+
+        # 保存多端口映射
+        config.ssh.port_mappings = self.port_mapping_frame.get_mappings()
 
         config.browser.auto_open = self.auto_open_var.get()
         config.browser.url = self.browser_url_var.get().strip()
@@ -856,10 +1036,6 @@ class StatusWindow:
             host=config.ssh.host,
             port=config.ssh.port,
             user=config.ssh.user,
-            local_bind_host=config.ssh.local_bind_host,
-            local_port=config.ssh.local_port,
-            remote_host=config.ssh.remote_host,
-            remote_port=config.ssh.remote_port,
             key_path=config.ssh.key_path,
             known_hosts=config.ssh.known_hosts,
             strict_host_key_checking=config.ssh.strict_host_key_checking,
@@ -867,6 +1043,7 @@ class StatusWindow:
             server_alive_interval=config.ssh.server_alive_interval,
             server_alive_count_max=config.ssh.server_alive_count_max,
             compression=config.ssh.compression,
+            port_mappings=config.ssh.port_mappings,
         )
 
         success, error = self.tunnel.check_prerequisites()
@@ -1045,10 +1222,6 @@ class MainWindow:
             host=config.ssh.host,
             port=config.ssh.port,
             user=config.ssh.user,
-            local_bind_host=config.ssh.local_bind_host,
-            local_port=config.ssh.local_port,
-            remote_host=config.ssh.remote_host,
-            remote_port=config.ssh.remote_port,
             key_path=config.ssh.key_path,
             known_hosts=config.ssh.known_hosts,
             strict_host_key_checking=config.ssh.strict_host_key_checking,
@@ -1056,6 +1229,7 @@ class MainWindow:
             server_alive_interval=config.ssh.server_alive_interval,
             server_alive_count_max=config.ssh.server_alive_count_max,
             compression=config.ssh.compression,
+            port_mappings=config.ssh.port_mappings,
         )
 
         success, error = self.tunnel.check_prerequisites()

@@ -99,15 +99,11 @@ def start_tunnel() -> tuple[bool, str]:
     global tunnel
     config = config_manager.config
 
-    # 创建隧道
+    # 创建隧道（使用多端口映射）
     tunnel = SSHTunnel(
         host=config.ssh.host,
         port=config.ssh.port,
         user=config.ssh.user,
-        local_bind_host=config.ssh.local_bind_host,
-        local_port=config.ssh.local_port,
-        remote_host=config.ssh.remote_host,
-        remote_port=config.ssh.remote_port,
         key_path=config.ssh.key_path,
         known_hosts=config.ssh.known_hosts,
         strict_host_key_checking=config.ssh.strict_host_key_checking,
@@ -115,6 +111,7 @@ def start_tunnel() -> tuple[bool, str]:
         server_alive_interval=config.ssh.server_alive_interval,
         server_alive_count_max=config.ssh.server_alive_count_max,
         compression=config.ssh.compression,
+        port_mappings=config.ssh.port_mappings,
     )
 
     # 检查前置条件

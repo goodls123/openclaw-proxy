@@ -20,7 +20,8 @@
       "Bash(python -c \"from PIL import Image; img = Image.open\\(''assets/images/openclaw.png''\\); print\\(f''Original size: {img.size}''\\)\")",
       "Bash(python -m py_compile ssh_tunnel.py)",
       "Bash(python main.py)",
-      "Bash(python -m py_compile version.py updater.py main.py ui.py)"
+      "Bash(python -m py_compile version.py updater.py main.py ui.py)",
+      "Bash(python -m py_compile config_manager.py)"
     ]
   }
 }

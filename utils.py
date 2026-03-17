@@ -320,15 +320,15 @@ def get_dpi_info() -> dict:
 
 def get_scaled_font_size(base_size: int = 10) -> int:
     """
-    根据DPI缩放获取合适的字体大小
+    获取字体大小
+
+    注意：tk scaling 已经处理了 DPI 缩放，不需要手动缩放字体大小，
+    否则会导致双重缩放，字体过大。
 
     Args:
-        base_size: 基础字体大小（96 DPI下）
+        base_size: 基础字体大小
 
     Returns:
-        缩放后的字体大小
+        字体大小（不进行额外缩放）
     """
-    scale = _dpi_info["scale_factor"]
-    # 避免字体过大，限制最大缩放
-    adjusted_scale = min(scale, 1.5)
-    return max(int(base_size * adjusted_scale), base_size)
+    return base_size
