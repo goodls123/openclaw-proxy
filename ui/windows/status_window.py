@@ -25,7 +25,7 @@ class StatusWindow(BaseWindow):
     功能：
     1. 显示隧道运行状态
     2. 打开浏览器
-    3. 停止/重启隧道
+    3. 停止/重启隧道（单按钮切换）
     4. 自动获取token
     """
 
@@ -88,22 +88,15 @@ class StatusWindow(BaseWindow):
         )
         self._browser_btn.pack(side=tk.LEFT, padx=5)
 
-        self._stop_btn = ttk.Button(
+        self._is_tunnel_running = True  # 隧道运行状态
+
+        self._toggle_btn = ttk.Button(
             btn_frame,
             text="停止代理",
-            command=self._stop_tunnel,
+            command=self._toggle_tunnel,
             width=14,
         )
-        self._stop_btn.pack(side=tk.LEFT, padx=5)
-
-        self._restart_btn = ttk.Button(
-            btn_frame,
-            text="重新代理",
-            command=self._restart_tunnel,
-            width=14,
-            state=tk.DISABLED,
-        )
-        self._restart_btn.pack(side=tk.LEFT, padx=5)
+        self._toggle_btn.pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
             btn_frame,
@@ -127,27 +120,35 @@ class StatusWindow(BaseWindow):
             lines.append(f"进程ID: {info['pid']}")
         self._status_panel.set_info_lines(lines)
 
+    def _toggle_tunnel(self) -> None:
+        """切换隧道状态（停止/启动）"""
+        if self._is_tunnel_running:
+            self._stop_tunnel()
+        else:
+            self._start_tunnel()
+
     def _stop_tunnel(self) -> None:
         """停止隧道"""
         success, message = self._presenter.stop_tunnel()
         if success:
+            self._is_tunnel_running = False
             self._status_panel.set_state(TunnelState.DISCONNECTED)
-            self._stop_btn.config(state=tk.DISABLED)
-            self._restart_btn.config(state=tk.NORMAL)
+            self._toggle_btn.config(text="启动代理")
             self._browser_btn.config(state=tk.DISABLED)
         else:
             messagebox.showerror("错误", message, parent=self.root)
 
-    def _restart_tunnel(self) -> None:
-        """重启隧道"""
+    def _start_tunnel(self) -> None:
+        """启动隧道"""
         self._status_panel.set_state(TunnelState.RECONNECTING, "正在重新连接...")
-        self._restart_btn.config(state=tk.DISABLED)
+        self._toggle_btn.config(state=tk.DISABLED)
         self.root.update()
 
         def on_result(success: bool, message: str):
             if success:
+                self._is_tunnel_running = True
                 self._status_panel.set_state(TunnelState.CONNECTED)
-                self._stop_btn.config(state=tk.NORMAL)
+                self._toggle_btn.config(text="停止代理", state=tk.NORMAL)
                 self._browser_btn.config(state=tk.NORMAL)
 
                 config = self._container.config_repo.load()
@@ -155,7 +156,7 @@ class StatusWindow(BaseWindow):
                     self._open_browser()
             else:
                 self._status_panel.set_state(TunnelState.ERROR, f"重启失败: {message}")
-                self._restart_btn.config(state=tk.NORMAL)
+                self._toggle_btn.config(state=tk.NORMAL)
                 messagebox.showerror("错误", message, parent=self.root)
 
         self._presenter.restart_tunnel_async(on_result)
