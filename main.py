@@ -169,8 +169,8 @@ def run_auto_mode():
         _container.browser_service.open()
 
     # 显示运行状态窗口
-    from ui.windows import StatusWindow
-    app = StatusWindow(_container, _container.tunnel_service)
+    from ui.windows import MainWindow
+    app = MainWindow(_container)
     app.run()
 
     return 0

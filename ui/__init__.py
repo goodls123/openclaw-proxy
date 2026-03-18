@@ -16,7 +16,7 @@ from ui.base import (
 )
 
 # 导出新窗口类
-from ui.windows import MainWindow, StatusWindow, ConfigWindow
+from ui.windows import MainWindow, ConfigWindow
 
 __all__ = [
     # 基类和工具函数
@@ -30,6 +30,5 @@ __all__ = [
     "load_logo",
     # 窗口类
     "MainWindow",
-    "StatusWindow",
     "ConfigWindow",
 ]

@@ -94,16 +94,12 @@ class Application:
 
     def run_status(self) -> int:
         """
-        运行状态窗口模式
+        运行状态窗口模式（使用主窗口）
 
         Returns:
             退出码
         """
-        from ui.windows.status_window import StatusWindow
-
-        window = StatusWindow(self.container)
-        window.run()
-        return 0
+        return self.run_gui()
 
     def shutdown(self) -> None:
         """关闭应用"""

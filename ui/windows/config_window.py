@@ -5,8 +5,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import TYPE_CHECKING, Optional, Callable
+import threading
 
-from ui.base import BaseDialog, get_font, center_on_parent
+from ui.base import BaseDialog, get_font, center_on_parent, set_window_icon
 from components.port_mapping_frame import PortMappingFrame
 from presenters.config_presenter import ConfigPresenter
 from models import Config
@@ -384,8 +385,264 @@ class ConfigWindow(tk.Toplevel):
 
     def _generate_key(self) -> None:
         """打开生成密钥对话框"""
-        # TODO: 实现密钥生成对话框
-        messagebox.showinfo("提示", "密钥生成功能将在后续版本中实现", parent=self)
+        # 从窗体获取服务器配置参数
+        host = self._host_var.get().strip()
+        port_str = self._port_var.get().strip()
+        user = self._user_var.get().strip()
+
+        # 非空检查
+        if not host:
+            messagebox.showerror("错误", "请输入服务器地址", parent=self)
+            return
+        if not port_str:
+            messagebox.showerror("错误", "请输入SSH端口", parent=self)
+            return
+        if not user:
+            messagebox.showerror("错误", "请输入用户名", parent=self)
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("生成SSH密钥")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        set_window_icon(dialog)
+
+        config = self._presenter.load_config()
+
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill=tk.BOTH, expand=True)
+        frame.columnconfigure(1, weight=1)
+
+        # 服务器信息（使用窗体传入的值）
+        ttk.Label(frame, text="服务器地址:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        host_var = tk.StringVar(value=host)
+        host_entry = ttk.Entry(frame, textvariable=host_var, width=25)
+        host_entry.grid(row=0, column=1, pady=5, padx=(5, 0))
+
+        ttk.Label(frame, text="端口:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        port_var = tk.StringVar(value=port_str)
+        port_entry = ttk.Entry(frame, textvariable=port_var, width=10)
+        port_entry.grid(row=1, column=1, sticky=tk.W, pady=5, padx=(5, 0))
+
+        ttk.Label(frame, text="用户名:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        user_var = tk.StringVar(value=user)
+        user_entry = ttk.Entry(frame, textvariable=user_var, width=25)
+        user_entry.grid(row=2, column=1, pady=5, padx=(5, 0))
+
+        ttk.Label(frame, text="密码:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        password_var = tk.StringVar()
+        password_entry = ttk.Entry(frame, textvariable=password_var, show="*", width=25)
+        password_entry.grid(row=3, column=1, pady=5, padx=(5, 0))
+
+        # 密钥类型
+        ttk.Label(frame, text="密钥类型:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        key_type_var = tk.StringVar(value=config.keygen.key_type)
+        key_type_combo = ttk.Combobox(frame, textvariable=key_type_var, width=15, state="readonly")
+        key_type_combo["values"] = ("ed25519", "rsa")
+        key_type_combo.grid(row=4, column=1, sticky=tk.W, pady=5, padx=(5, 0))
+
+        # 密钥注释
+        ttk.Label(frame, text="密钥注释:").grid(row=5, column=0, sticky=tk.W, pady=5)
+        key_comment_var = tk.StringVar(value=config.keygen.comment)
+        key_comment_entry = ttk.Entry(frame, textvariable=key_comment_var, width=25)
+        key_comment_entry.grid(row=5, column=1, pady=5, padx=(5, 0))
+
+        # 状态标签
+        status_var = tk.StringVar(value="")
+        status_label = ttk.Label(frame, textvariable=status_var, foreground="blue")
+        status_label.grid(row=6, column=0, columnspan=2, pady=10)
+
+        # 按钮框架
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=7, column=0, columnspan=2, pady=(15, 0))
+        ok_btn = ttk.Button(btn_frame, text="确定", width=10)
+        ok_btn.pack(side=tk.LEFT, padx=5)
+        cancel_btn = ttk.Button(btn_frame, text="取消", width=10)
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+
+        def set_ui_enabled(enabled: bool):
+            state = tk.NORMAL if enabled else tk.DISABLED
+            host_entry.config(state=state)
+            port_entry.config(state=state)
+            user_entry.config(state=state)
+            password_entry.config(state=state)
+            key_type_combo.config(state=state)
+            key_comment_entry.config(state=state)
+            ok_btn.config(state=state)
+            cancel_btn.config(state=state)
+
+        def update_status(msg: str):
+            dialog.after(0, lambda: status_var.set(msg))
+
+        def show_error(msg: str):
+            def do_show():
+                status_var.set(f"✗ {msg}")
+                status_label.config(foreground="red")
+                messagebox.showerror("失败", msg, parent=dialog)
+                set_ui_enabled(True)
+                dialog.after(100, lambda: status_label.config(foreground="blue"))
+            dialog.after(0, do_show)
+
+        def on_ok(_event=None):
+            host_val = host_var.get().strip()
+            port_str_val = port_var.get().strip()
+            user_val = user_var.get().strip()
+            password_val = password_var.get()
+
+            if not host_val:
+                messagebox.showerror("错误", "请输入服务器地址", parent=dialog)
+                return
+            if not port_str_val.isdigit():
+                messagebox.showerror("错误", "端口必须是数字", parent=dialog)
+                return
+            if not user_val:
+                messagebox.showerror("错误", "请输入用户名", parent=dialog)
+                return
+            if not password_val:
+                messagebox.showerror("错误", "请输入密码", parent=dialog)
+                return
+
+            port_val = int(port_str_val)
+            set_ui_enabled(False)
+
+            def run():
+                try:
+                    from services.key_service import KeyManager
+
+                    # 创建密钥管理器
+                    key_manager = KeyManager(
+                        key_path=config.ssh.key_path,
+                        key_type=key_type_var.get(),
+                        comment=key_comment_var.get().strip(),
+                    )
+
+                    # 检查密钥是否存在
+                    if key_manager.key_exists():
+                        update_status("密钥已存在，等待确认...")
+                        # 需要在主线程显示确认对话框
+                        if not dialog.winfo_exists():
+                            return
+
+                        def check_and_proceed():
+                            if not messagebox.askyesno("确认", "密钥已存在，是否覆盖？", parent=dialog):
+                                set_ui_enabled(True)
+                                status_var.set("")
+                                return
+                            # 备份并删除旧密钥，然后生成新密钥
+                            backup_and_generate(key_manager, host_val, port_val, user_val, password_val)
+
+                        dialog.after(0, check_and_proceed)
+                        return
+
+                    # 直接生成
+                    proceed_generate(key_manager, host_val, port_val, user_val, password_val)
+
+                except Exception as e:
+                    show_error(f"初始化失败: {str(e)}")
+
+            def backup_and_generate(key_manager, host_val, port_val, user_val, password_val):
+                """备份旧密钥后生成新密钥"""
+                def do_backup_and_generate():
+                    try:
+                        # 1. 备份旧密钥
+                        update_status("正在备份旧密钥...")
+                        backup_success, backup_msg = key_manager.backup_key()
+                        if not backup_success:
+                            show_error(f"备份失败: {backup_msg}")
+                            return
+
+                        update_status(f"已备份: {backup_msg}")
+
+                        # 2. 删除旧密钥
+                        update_status("正在删除旧密钥...")
+                        delete_success, delete_msg = key_manager.delete_key()
+                        if not delete_success:
+                            show_error(f"删除失败: {delete_msg}")
+                            return
+
+                        # 3. 生成新密钥
+                        proceed_generate(key_manager, host_val, port_val, user_val, password_val)
+
+                    except Exception as e:
+                        show_error(f"备份并生成失败: {str(e)}")
+
+                threading.Thread(target=do_backup_and_generate, daemon=True).start()
+
+            def proceed_generate(key_manager, host_val, port_val, user_val, password_val):
+                def do_work():
+                    try:
+                        update_status("正在生成密钥...")
+                        result = key_manager.generate_and_deploy(
+                            host=host_val,
+                            port=port_val,
+                            user=user_val,
+                            password=password_val,
+                            overwrite=True,
+                            progress_callback=update_status,
+                        )
+
+                        if not dialog.winfo_exists():
+                            return
+
+                        if result.success:
+                            # 测试密钥连接
+                            update_status("正在测试密钥连接...")
+                            test_success, test_msg = key_manager.test_key_connection(host_val, port_val, user_val)
+
+                            if not dialog.winfo_exists():
+                                return
+
+                            if test_success:
+                                # 成功：保存配置并关闭
+                                dialog.after(0, lambda: on_success(host_val, port_val, user_val))
+                            else:
+                                show_error(f"密钥连接测试失败: {test_msg}")
+                        else:
+                            error_msg = result.message
+                            if result.error_detail:
+                                error_msg += f"\n{result.error_detail}"
+                            show_error(error_msg)
+
+                    except Exception as e:
+                        if dialog.winfo_exists():
+                            show_error(f"操作失败: {str(e)}")
+
+                threading.Thread(target=do_work, daemon=True).start()
+
+            def on_success(host_val, port_val, user_val):
+                # 保存配置
+                config.ssh.host = host_val
+                config.ssh.port = port_val
+                config.ssh.user = user_val
+                # 保存密钥类型和注释配置
+                config.keygen.key_type = key_type_var.get()
+                config.keygen.comment = key_comment_var.get().strip()
+                self._presenter.save_config(config)
+                self._load_config()
+                self._update_key_display()
+
+                messagebox.showinfo("成功", "密钥生成并部署成功", parent=dialog)
+                dialog.destroy()
+
+            threading.Thread(target=run, daemon=True).start()
+
+        def on_cancel():
+            dialog.destroy()
+
+        ok_btn.config(command=on_ok)
+        cancel_btn.config(command=on_cancel)
+        dialog.bind("<Return>", on_ok)
+        dialog.bind("<Escape>", lambda _e: on_cancel())
+
+        # 居中
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        password_entry.focus_set()
+        dialog.wait_window()
 
     def _test_connection(self) -> None:
         """测试连接"""
