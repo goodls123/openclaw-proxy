@@ -1,7 +1,7 @@
 
 # OpenClaw 代理工具
 
-![OpenClaw](assets/images/openclaw.png)
+![OpenClaw](resources/images/openclaw.png)
 
 一键启动 SSH 端口转发，并自动打开浏览器访问 OpenClaw 服务。
 

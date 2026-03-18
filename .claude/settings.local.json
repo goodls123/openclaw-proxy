@@ -33,7 +33,16 @@
       "Bash(python -c \":*)",
       "Bash(python -c \"from ui.windows.config_window import ConfigWindow; print\\(''OK''\\)\")",
       "Bash(python -c \"from ui import MainWindow, StatusWindow, ConfigWindow; print\\(''UI imports OK''\\)\")",
-      "Bash(python -c \"import main; print\\(''main.py import OK''\\)\")"
+      "Bash(python -c \"import main; print\\(''main.py import OK''\\)\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(python -m py_compile services/key_service.py)",
+      "Bash(python -m py_compile services/tunnel_service.py)",
+      "Bash(python -m py_compile services/update_service.py)",
+      "Bash(python -m py_compile repositories/remote_config_repository.py)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":18789\")",
+      "Bash(tasklist /FI \"PID eq 12612\")",
+      "Bash(wmic process:*)"
     ]
   }
 }

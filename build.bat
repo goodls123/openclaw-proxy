@@ -48,7 +48,7 @@ echo.
 :: 复制配置文件模板
 if not exist "dist\config.ini" (
     echo [信息] 生成默认配置文件...
-    python -c "from config_manager import ConfigManager; ConfigManager('dist/config.ini').save()"
+    python -c "from repositories.config_repository import ConfigRepository; ConfigRepository('dist/config.ini').save(ConfigRepository('dist/config.ini').load())"
 )
 
 echo 提示: 首次运行会自动生成配置文件

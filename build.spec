@@ -14,8 +14,8 @@ a = Analysis(
     pathex=[current_dir],
     binaries=[],
     datas=[
-        ('assets/images/favicon.ico', 'assets/images'),
-        ('assets/images/openclaw.png', 'assets/images'),
+        ('resources/images/favicon.ico', 'resources/images'),
+        ('resources/images/openclaw.png', 'resources/images'),
     ],
     hiddenimports=[
         'paramiko',
@@ -67,7 +67,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/images/favicon.ico',
+    icon='resources/images/favicon.ico',
     # DPI manifest - 支持高分屏
     manifest='dpi.manifest',
 )

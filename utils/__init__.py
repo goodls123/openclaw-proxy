@@ -3,7 +3,15 @@
 """
 
 from utils.logging_utils import setup_logging
-from utils.network_utils import can_connect, check_ssh_available, check_ssh_keygen_available
+from utils.network_utils import (
+    can_connect,
+    check_ssh_available,
+    check_ssh_keygen_available,
+    find_processes_on_port,
+    kill_process,
+    kill_processes_on_port,
+    is_port_available,
+)
 from utils.path_utils import expand_path, ensure_dir, get_default_ssh_dir, get_default_key_path
 from utils.dpi_utils import (
     enable_high_dpi,
@@ -27,4 +35,8 @@ __all__ = [
     "get_dpi_scale",
     "get_scaled_font_size",
     "get_dpi_info",
+    "find_processes_on_port",
+    "kill_process",
+    "kill_processes_on_port",
+    "is_port_available",
 ]
