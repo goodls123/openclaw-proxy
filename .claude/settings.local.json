@@ -21,7 +21,19 @@
       "Bash(python -m py_compile ssh_tunnel.py)",
       "Bash(python main.py)",
       "Bash(python -m py_compile version.py updater.py main.py ui.py)",
-      "Bash(python -m py_compile config_manager.py)"
+      "Bash(python -m py_compile config_manager.py)",
+      "Bash(python -c \"from ui import MainWindow, StatusWindow; print\\(''导入成功:'', MainWindow, StatusWindow\\)\")",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(pip install:*)",
+      "Bash(python -c \"from ui import MainWindow, StatusWindow, ConfigWindow; print\\(''Import test passed!''\\)\")",
+      "Bash(python -c \"import main; print\\(''Import successful''\\)\")",
+      "Bash(python -c \"import main; print\\(''main.py import successful''\\)\")",
+      "Bash(python -c \"from ui import MainWindow, StatusWindow, ConfigWindow; print\\(''UI import successful''\\)\")",
+      "Bash(python -c \"from models import TunnelStatus; print\\(''TunnelStatus import OK''\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"from ui.windows.config_window import ConfigWindow; print\\(''OK''\\)\")",
+      "Bash(python -c \"from ui import MainWindow, StatusWindow, ConfigWindow; print\\(''UI imports OK''\\)\")",
+      "Bash(python -c \"import main; print\\(''main.py import OK''\\)\")"
     ]
   }
 }

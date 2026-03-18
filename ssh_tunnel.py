@@ -103,14 +103,18 @@ class SSHTunnel:
         self._setup_signal_handlers()
 
     def _setup_signal_handlers(self):
-        """设置信号处理器"""
-        if sys.platform == "win32":
-            # Windows下处理Ctrl+C
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
-        else:
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
+        """设置信号处理器（仅在主线程中）"""
+        try:
+            if sys.platform == "win32":
+                # Windows下处理Ctrl+C
+                signal.signal(signal.SIGINT, self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
+            else:
+                signal.signal(signal.SIGINT, self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
+        except ValueError:
+            # 不在主线程中，跳过信号处理
+            pass
 
     def _signal_handler(self, signum, frame):
         """信号处理函数"""

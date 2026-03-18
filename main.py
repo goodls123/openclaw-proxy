@@ -8,26 +8,22 @@ OpenClaw代理工具
 2. 启用Windows DPI感知（UI模式时）
 3. 加载配置
 4. 创建UI/启动代理
+
+架构：使用 ServiceContainer 进行依赖注入，UI层使用 Presenter 模式
 """
 
 import os
 import sys
 import argparse
-import time
-import webbrowser
 import logging
 from typing import Optional
 
-from utils import setup_logging, check_ssh_available, can_connect, expand_path
-from config_manager import ConfigManager
-from key_manager import KeyManager
-from ssh_tunnel import SSHTunnel
+from utils import setup_logging, check_ssh_available, expand_path
 from version import __version__
 
 # 全局变量
 logger: Optional[logging.Logger] = None
-config_manager: Optional[ConfigManager] = None
-tunnel: Optional[SSHTunnel] = None
+_container = None
 
 
 def parse_args():
@@ -90,62 +86,17 @@ def check_environment() -> tuple[bool, str]:
 
 def check_key_exists() -> bool:
     """检查密钥是否存在"""
-    key_path = expand_path(config_manager.config.ssh.key_path)
+    config = _container.config_repo.load()
+    key_path = expand_path(config.ssh.key_path)
     return os.path.exists(key_path)
 
 
-def start_tunnel() -> tuple[bool, str]:
-    """启动SSH隧道"""
-    global tunnel
-    config = config_manager.config
-
-    # 创建隧道（使用多端口映射）
-    tunnel = SSHTunnel(
-        host=config.ssh.host,
-        port=config.ssh.port,
-        user=config.ssh.user,
-        key_path=config.ssh.key_path,
-        known_hosts=config.ssh.known_hosts,
-        strict_host_key_checking=config.ssh.strict_host_key_checking,
-        connect_timeout=config.ssh.connect_timeout,
-        server_alive_interval=config.ssh.server_alive_interval,
-        server_alive_count_max=config.ssh.server_alive_count_max,
-        compression=config.ssh.compression,
-        port_mappings=config.ssh.port_mappings,
-    )
-
-    # 检查前置条件
-    success, error = tunnel.check_prerequisites()
-    if not success:
-        return False, error
-
-    # 启动隧道
-    success, message = tunnel.start()
-    if not success:
-        return False, message
-
-    # 等待连接建立
-    success, message = tunnel.wait_for_connection(timeout=config.browser.open_timeout)
-    if not success:
-        tunnel.stop()
-        return False, message
-
-    return True, "隧道连接成功"
-
-
-def stop_tunnel():
-    """停止SSH隧道"""
-    global tunnel
-    if tunnel:
-        tunnel.stop()
-        tunnel = None
-
-
 def run_gui_mode(title: str = "OpenClaw代理配置"):
-    """运行图形界面模式"""
-    from ui import MainWindow
-    app = MainWindow(config_manager, title=title)
-    app.run()
+    """运行图形界面模式 - 使用新架构"""
+    from ui.windows import MainWindow
+
+    window = MainWindow(_container, title=title)
+    window.run()
     return 0
 
 
@@ -157,7 +108,7 @@ def run_auto_mode():
     3. 失败则打开配置界面
     4. 成功则启动代理并打开浏览器
     """
-    config = config_manager.config
+    config = _container.config_repo.load()
 
     # 检查环境
     success, error = check_environment()
@@ -171,40 +122,55 @@ def run_auto_mode():
         logger.info("密钥不存在，打开配置界面")
         return run_gui_mode("首次使用 - 请配置SSH密钥")
 
-    # 先测试SSH连接（使用BatchMode，避免密码提示）
+    # 测试SSH连接
     logger.info("正在测试SSH连接...")
-    from key_manager import KeyManager
-    key_manager = KeyManager(key_path=config.ssh.key_path)
-
-    success, message = key_manager.test_key_connection(
+    success, message = _container.key_service.test_connection(
         host=config.ssh.host,
         port=config.ssh.port,
         user=config.ssh.user,
-        timeout=5,
+        key_path=config.ssh.key_path,
     )
 
     if not success:
         logger.error(f"SSH连接测试失败: {message}")
         return run_gui_mode("配置 - SSH连接失败")
 
-    # 测试成功，启动隧道
+    # 启动隧道
     logger.info("正在启动SSH隧道...")
-    success, message = start_tunnel()
+    success, message = _container.tunnel_service.start()
 
     if not success:
         logger.error(f"启动失败: {message}")
-        stop_tunnel()
         return run_gui_mode("配置 - 代理启动失败")
 
-    # 隧道启动成功，打开浏览器
+    # 等待连接建立
+    success, message = _container.tunnel_service.wait_for_connection(
+        timeout=config.browser.open_timeout
+    )
+    if not success:
+        _container.tunnel_service.stop()
+        logger.error(f"连接超时: {message}")
+        return run_gui_mode("配置 - 代理启动失败")
+
+    # 隧道启动成功
     logger.info("隧道启动成功")
+
+    # 自动获取token
+    if config.browser.auto_fetch_token:
+        logger.info("正在获取token...")
+        token_success, _ = _container.token_service.fetch_token_sync()
+        if token_success:
+            logger.info("Token获取成功")
+
+    # 打开浏览器
     if config.browser.auto_open:
-        logger.info(f"正在打开浏览器: {config.browser.url}")
-        webbrowser.open(config.browser.url)
+        url = _container.browser_service.get_url()
+        logger.info(f"正在打开浏览器: {url}")
+        _container.browser_service.open()
 
     # 显示运行状态窗口
-    from ui import StatusWindow
-    app = StatusWindow(config_manager, tunnel)
+    from ui.windows import StatusWindow
+    app = StatusWindow(_container, _container.tunnel_service)
     app.run()
 
     return 0
@@ -212,7 +178,7 @@ def run_auto_mode():
 
 def main():
     """主函数"""
-    global logger, config_manager
+    global logger, _container
 
     args = parse_args()
 
@@ -236,24 +202,28 @@ def main():
     logger.info(f"配置目录: {user_config_dir}")
     logger.info(f"配置文件: {config_file}")
 
-    # 2. 加载配置
-    config_manager = ConfigManager(config_file)
-    config_manager.load()
-    config_manager.update_from_args(args)
+    # 2. 创建服务容器（新架构）
+    from app.container import ServiceContainer
+    _container = ServiceContainer.create(config_file)
 
-    # 3. 强制打开配置界面
+    # 3. 加载配置并应用命令行参数
+    _container.config_repo.load()
+    _container.config_repo.update_from_args(args)
+
+    # 4. 强制打开配置界面
     if args.config:
         return run_gui_mode()
 
-    # 4. 打开配置文件编辑
+    # 5. 打开配置文件编辑
     if args.edit_config:
         if not os.path.exists(config_file):
-            config_manager.save()
+            config = _container.config_repo.load()
+            _container.config_repo.save(config)
         if sys.platform == "win32":
             os.startfile(config_file)
         return 0
 
-    # 5. 自动模式（会自动处理DPI设置）
+    # 6. 自动模式
     return run_auto_mode()
 
 

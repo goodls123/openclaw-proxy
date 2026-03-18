@@ -1,0 +1,31 @@
+"""
+常量定义
+"""
+
+from version import __version__, GITHUB_REPO, GITHUB_RELEASES_URL
+
+# 应用信息
+APP_NAME = "OpenClaw代理"
+APP_VERSION = __version__
+
+# GitHub信息
+# GITHUB_REPO 和 GITHUB_RELEASES_URL 从 version.py 导入
+
+# SSH默认配置
+DEFAULT_SSH_PORT = 22
+DEFAULT_LOCAL_HOST = "127.0.0.1"
+DEFAULT_REMOTE_HOST = "127.0.0.1"
+DEFAULT_LOCAL_PORT = 18789
+DEFAULT_REMOTE_PORT = 18789
+
+# 超时配置
+DEFAULT_CONNECT_TIMEOUT = 10  # SSH连接超时（秒）
+DEFAULT_BROWSER_TIMEOUT = 10  # 浏览器打开超时（秒）
+DEFAULT_KEEPALIVE_INTERVAL = 30  # SSH保活间隔（秒）
+DEFAULT_KEEPALIVE_COUNT_MAX = 3  # SSH保活失败次数
+
+# 远程配置
+DEFAULT_REMOTE_CONFIG_PATH = "~/.openclaw/openclaw.json"
+
+# 更新检查
+UPDATE_CHECK_INTERVAL_HOURS = 24  # 更新检查间隔（小时）
