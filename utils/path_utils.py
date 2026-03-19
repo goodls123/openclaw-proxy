@@ -54,18 +54,19 @@ def get_default_ssh_dir() -> str:
     return os.path.join(os.path.expanduser("~"), ".ssh")
 
 
-def get_default_key_path(key_type: str = "ed25519") -> str:
+def get_default_key_path(key_type: str = "ed25519", host: str = "openclaw") -> str:
     """
     获取默认的私钥路径
 
     Args:
         key_type: 密钥类型 (ed25519, rsa)
+        host: 主机地址，用于生成密钥文件名
 
     Returns:
         私钥文件的绝对路径
     """
     ssh_dir = get_default_ssh_dir()
-    return os.path.join(ssh_dir, f"openclaw_{key_type}")
+    return os.path.join(ssh_dir, f"{host}_{key_type}")
 
 
 def get_app_config_dir() -> str:
@@ -112,3 +113,35 @@ def get_filename(path: str) -> str:
         文件名
     """
     return os.path.basename(expand_path(path))
+
+
+def find_key_for_host(host: str) -> Optional[str]:
+    """
+    在系统密钥目录中查找匹配指定 host 的密钥文件
+
+    查找规则：
+    1. 查找 {host}_ed25519 或 {host}_rsa 格式的私钥
+    2. 优先返回 ed25519 类型
+
+    Args:
+        host: 服务器地址
+
+    Returns:
+        找到的密钥文件路径，未找到返回 None
+    """
+    if not host:
+        return None
+
+    ssh_dir = get_default_ssh_dir()
+    if not os.path.isdir(ssh_dir):
+        return None
+
+    # 支持的密钥类型，按优先级排序
+    key_types = ["ed25519", "rsa", "ecdsa", "dsa"]
+
+    for key_type in key_types:
+        key_path = os.path.join(ssh_dir, f"{host}_{key_type}")
+        if os.path.isfile(key_path):
+            return key_path
+
+    return None

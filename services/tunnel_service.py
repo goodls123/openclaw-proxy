@@ -554,9 +554,10 @@ class TunnelService(ITunnelService):
         """
         self._update_status(TunnelState.RECONNECTING, "正在重启...")
 
-        # 先停止
+        # 先停止并清理
         if self._tunnel:
             self._tunnel.stop()
+            self._tunnel = None
 
         # 重新启动
         return self.start()

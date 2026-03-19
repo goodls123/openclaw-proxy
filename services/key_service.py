@@ -63,24 +63,19 @@ class KeyManager:
         Returns:
             (是否成功, 备份路径或错误消息)
         """
-        from datetime import datetime
         import shutil
 
         if not self.key_exists():
             return False, "密钥不存在，无需备份"
 
         try:
-            # 生成备份文件名（带时间戳）
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_dir = os.path.dirname(self.key_path)
-
-            # 备份私钥
-            key_backup = f"{self.key_path}.bak_{timestamp}"
+            # 备份私钥（固定文件名，覆盖旧备份）
+            key_backup = f"{self.key_path}.bak"
             shutil.copy2(self.key_path, key_backup)
 
             # 备份公钥（如果存在）
             if os.path.exists(self.public_key_path):
-                pub_backup = f"{self.public_key_path}.bak_{timestamp}"
+                pub_backup = f"{self.public_key_path}.bak"
                 shutil.copy2(self.public_key_path, pub_backup)
 
             logger.info(f"密钥已备份到: {key_backup}")

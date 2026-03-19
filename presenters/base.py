@@ -74,9 +74,12 @@ class BasePresenter(ABC):
         Args:
             callback: 要执行的回调函数
         """
-        if self._view is not None and hasattr(self._view, "root"):
+        if self._view is not None:
             try:
-                self._view.root.after(0, callback)
+                # 优先使用 view.root（MainWindow），否则直接使用 view（Toplevel）
+                target = getattr(self._view, "root", self._view)
+                if hasattr(target, "after"):
+                    target.after(0, callback)
             except Exception:
                 # 如果窗口已关闭，忽略错误
                 pass

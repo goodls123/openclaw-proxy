@@ -41,11 +41,10 @@ class SSHConfig:
         """获取默认的.ssh目录路径"""
         return os.path.join(os.path.expanduser("~"), ".ssh")
 
-    @staticmethod
-    def _get_default_key_path(key_type: str = "ed25519") -> str:
+    def _get_default_key_path(self, key_type: str = "ed25519") -> str:
         """获取默认的私钥路径"""
-        ssh_dir = SSHConfig._get_default_ssh_dir()
-        return os.path.join(ssh_dir, f"openclaw_{key_type}")
+        ssh_dir = self._get_default_ssh_dir()
+        return os.path.join(ssh_dir, f"{self.host}_{key_type}")
 
     def get_primary_mapping(self) -> PortMapping:
         """获取主要端口映射（第一个或默认）"""

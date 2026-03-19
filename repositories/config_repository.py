@@ -65,15 +65,16 @@ class ConfigRepository(IConfigRepository):
         # 读取SSH配置
         if "ssh" in self._parser:
             ssh = self._parser["ssh"]
+            host = ssh.get("host", "localhost")
             config.ssh = SSHConfig(
-                host=ssh.get("host", "localhost"),
+                host=host,
                 port=ssh.getint("port", 22),
                 user=ssh.get("user", "root"),
                 local_bind_host=ssh.get("local_bind_host", "127.0.0.1"),
                 local_port=ssh.getint("local_port", 18789),
                 remote_host=ssh.get("remote_host", "127.0.0.1"),
                 remote_port=ssh.getint("remote_port", 18789),
-                key_path=ssh.get("key_path", get_default_key_path("ed25519")),
+                key_path=ssh.get("key_path", get_default_key_path("ed25519", host)),
                 known_hosts=ssh.get("known_hosts", os.path.join(get_default_ssh_dir(), "known_hosts")),
                 strict_host_key_checking=ssh.get("strict_host_key_checking", "accept-new"),
                 connect_timeout=ssh.getint("connect_timeout", 10),

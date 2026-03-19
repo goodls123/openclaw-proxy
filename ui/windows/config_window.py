@@ -2,10 +2,13 @@
 配置窗口
 """
 
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import TYPE_CHECKING, Optional, Callable
 import threading
+
+logger = logging.getLogger("openclaw_proxy")
 
 from ui.base import BaseDialog, get_font, center_on_parent, set_window_icon
 from components.port_mapping_frame import PortMappingFrame
@@ -108,7 +111,7 @@ class ConfigWindow(tk.Toplevel):
         # 底部按钮
         btn_frame = ttk.Frame(main_frame)
         btn_frame.grid(row=1, column=0, pady=10)
-        ttk.Button(btn_frame, text="保存并关闭", command=self._on_save_click, width=12).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="保存", command=self._on_save_click, width=12).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="恢复备份", command=self._restore_backup, width=12).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="取消", command=self.destroy, width=12).pack(side=tk.LEFT, padx=5)
 
@@ -123,7 +126,9 @@ class ConfigWindow(tk.Toplevel):
 
         ttk.Label(server_group, text="服务器地址:").grid(row=0, column=0, sticky=tk.W, pady=2)
         self._host_var = tk.StringVar()
-        ttk.Entry(server_group, textvariable=self._host_var).grid(row=0, column=1, sticky="ew", pady=2)
+        host_entry = ttk.Entry(server_group, textvariable=self._host_var)
+        host_entry.grid(row=0, column=1, sticky="ew", pady=2)
+        host_entry.bind("<FocusOut>", self._on_host_change)
 
         ttk.Label(server_group, text="SSH端口:").grid(row=1, column=0, sticky=tk.W, pady=2)
         self._port_var = tk.StringVar()
@@ -318,6 +323,31 @@ class ConfigWindow(tk.Toplevel):
         """保存按钮点击"""
         config = self._save_config()
         if self._presenter.save_config(config):
+            errors = []
+
+            # 如果隧道正在运行，重启让配置生效
+            tunnel_service = self._container.tunnel_service
+            if tunnel_service.is_running:
+                success, message = tunnel_service.restart()
+                if not success:
+                    errors.append(f"重启代理失败: {message}")
+                    logger.warning(f"重启代理失败: {message}")
+
+            # 如果启用了自动获取 token，重新获取
+            if config.browser.auto_fetch_token:
+                logger.info("保存配置后重新获取 token...")
+                self._container.token_service.clear_cache()
+                success, error_msg = self._container.token_service.fetch_token_sync()
+                if success:
+                    logger.info("Token 获取成功")
+                else:
+                    errors.append(f"Token 获取失败: {error_msg}")
+                    logger.warning(f"Token 获取失败: {error_msg}")
+
+            # 如果有错误，弹窗提示
+            if errors:
+                messagebox.showwarning("警告", "\n".join(errors), parent=self)
+
             if self._on_save:
                 self._on_save()
             self.destroy()
@@ -509,10 +539,14 @@ class ConfigWindow(tk.Toplevel):
             def run():
                 try:
                     from services.key_service import KeyManager
+                    from utils.path_utils import get_default_key_path
+
+                    # 使用弹窗中用户输入的host生成密钥路径
+                    key_path = get_default_key_path(key_type_var.get(), host_val)
 
                     # 创建密钥管理器
                     key_manager = KeyManager(
-                        key_path=config.ssh.key_path,
+                        key_path=key_path,
                         key_type=key_type_var.get(),
                         comment=key_comment_var.get().strip(),
                     )
@@ -530,18 +564,18 @@ class ConfigWindow(tk.Toplevel):
                                 status_var.set("")
                                 return
                             # 备份并删除旧密钥，然后生成新密钥
-                            backup_and_generate(key_manager, host_val, port_val, user_val, password_val)
+                            backup_and_generate(key_manager, host_val, port_val, user_val, password_val, key_path)
 
                         dialog.after(0, check_and_proceed)
                         return
 
                     # 直接生成
-                    proceed_generate(key_manager, host_val, port_val, user_val, password_val)
+                    proceed_generate(key_manager, host_val, port_val, user_val, password_val, key_path)
 
                 except Exception as e:
                     show_error(f"初始化失败: {str(e)}")
 
-            def backup_and_generate(key_manager, host_val, port_val, user_val, password_val):
+            def backup_and_generate(key_manager, host_val, port_val, user_val, password_val, key_path):
                 """备份旧密钥后生成新密钥"""
                 def do_backup_and_generate():
                     try:
@@ -562,14 +596,14 @@ class ConfigWindow(tk.Toplevel):
                             return
 
                         # 3. 生成新密钥
-                        proceed_generate(key_manager, host_val, port_val, user_val, password_val)
+                        proceed_generate(key_manager, host_val, port_val, user_val, password_val, key_path)
 
                     except Exception as e:
                         show_error(f"备份并生成失败: {str(e)}")
 
                 threading.Thread(target=do_backup_and_generate, daemon=True).start()
 
-            def proceed_generate(key_manager, host_val, port_val, user_val, password_val):
+            def proceed_generate(key_manager, host_val, port_val, user_val, password_val, key_path):
                 def do_work():
                     try:
                         update_status("正在生成密钥...")
@@ -595,7 +629,7 @@ class ConfigWindow(tk.Toplevel):
 
                             if test_success:
                                 # 成功：保存配置并关闭
-                                dialog.after(0, lambda: on_success(host_val, port_val, user_val))
+                                dialog.after(0, lambda: on_success(host_val, port_val, user_val, key_path))
                             else:
                                 show_error(f"密钥连接测试失败: {test_msg}")
                         else:
@@ -610,16 +644,22 @@ class ConfigWindow(tk.Toplevel):
 
                 threading.Thread(target=do_work, daemon=True).start()
 
-            def on_success(host_val, port_val, user_val):
+            def on_success(host_val, port_val, user_val, key_path):
                 # 保存配置
                 config.ssh.host = host_val
                 config.ssh.port = port_val
                 config.ssh.user = user_val
+                config.ssh.key_path = key_path
                 # 保存密钥类型和注释配置
                 config.keygen.key_type = key_type_var.get()
                 config.keygen.comment = key_comment_var.get().strip()
                 self._presenter.save_config(config)
-                self._load_config()
+
+                # 直接更新配置窗口的显示
+                self._host_var.set(host_val)
+                self._port_var.set(str(port_val))
+                self._user_var.set(user_val)
+                self._key_path_var.set(key_path)
                 self._update_key_display()
 
                 messagebox.showinfo("成功", "密钥生成并部署成功", parent=dialog)
@@ -666,3 +706,19 @@ class ConfigWindow(tk.Toplevel):
     def _on_mapping_change(self) -> None:
         """端口映射变更回调"""
         pass
+
+    def _on_host_change(self, _) -> None:
+        """服务器地址变更时自动查找匹配的密钥"""
+        from utils.path_utils import find_key_for_host
+
+        host = self._host_var.get().strip()
+        key_path = find_key_for_host(host)
+
+        if key_path:
+            self._key_path_var.set(key_path)
+            self._update_key_display()
+            logger.info(f"已自动匹配密钥: {key_path}")
+        else:
+            self._key_path_var.set("")
+            self._update_key_display()
+            logger.debug(f"未找到匹配 {host} 的密钥")
