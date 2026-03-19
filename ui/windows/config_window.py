@@ -46,7 +46,7 @@ class ConfigWindow(tk.Toplevel):
             on_save: 保存回调
         """
         super().__init__(parent)
-        self.title("OpenClaw代理配置")
+        self.title("OpenClaw连接代理")
         self.resizable(True, True)
         self.transient(parent)
 

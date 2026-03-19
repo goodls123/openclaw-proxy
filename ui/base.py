@@ -131,7 +131,7 @@ class BaseWindow:
     4. 统一的字体管理
     """
 
-    def __init__(self, title: str = "OpenClaw代理"):
+    def __init__(self, title: str = "OpenClaw连接代理"):
         """
         初始化窗口
 

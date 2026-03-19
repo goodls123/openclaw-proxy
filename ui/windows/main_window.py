@@ -28,7 +28,7 @@ class MainWindow(BaseWindow):
     4. 检查更新
     """
 
-    def __init__(self, container: "ServiceContainer", title: str = "OpenClaw代理配置"):
+    def __init__(self, container: "ServiceContainer", title: str = "OpenClaw连接代理"):
         """
         初始化主窗口
 
@@ -66,7 +66,7 @@ class MainWindow(BaseWindow):
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # 头部（Logo + 标题）
-        self._header = HeaderPanel(main_frame, title="OpenClaw 代理工具", logo_size=128)
+        self._header = HeaderPanel(main_frame, title="OpenClaw连接代理", logo_size=128)
         self._header.pack(pady=(0, 0))
 
         # 状态面板

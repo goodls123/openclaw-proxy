@@ -91,7 +91,7 @@ def check_key_exists() -> bool:
     return os.path.exists(key_path)
 
 
-def run_gui_mode(title: str = "OpenClaw代理配置"):
+def run_gui_mode(title: str = "OpenClaw连接代理"):
     """运行图形界面模式 - 使用新架构"""
     from ui.windows import MainWindow
 
@@ -120,7 +120,7 @@ def run_auto_mode():
     # 检查密钥是否存在
     if not check_key_exists():
         logger.info("密钥不存在，打开配置界面")
-        return run_gui_mode("首次使用 - 请配置SSH密钥")
+        return run_gui_mode()
 
     # 测试SSH连接
     logger.info("正在测试SSH连接...")
@@ -133,7 +133,7 @@ def run_auto_mode():
 
     if not success:
         logger.error(f"SSH连接测试失败: {message}")
-        return run_gui_mode("配置 - SSH连接失败")
+        return run_gui_mode()
 
     # 启动隧道
     logger.info("正在启动SSH隧道...")
@@ -141,7 +141,7 @@ def run_auto_mode():
 
     if not success:
         logger.error(f"启动失败: {message}")
-        return run_gui_mode("配置 - 代理启动失败")
+        return run_gui_mode()
 
     # 等待连接建立
     success, message = _container.tunnel_service.wait_for_connection(
@@ -150,7 +150,7 @@ def run_auto_mode():
     if not success:
         _container.tunnel_service.stop()
         logger.error(f"连接超时: {message}")
-        return run_gui_mode("配置 - 代理启动失败")
+        return run_gui_mode()
 
     # 隧道启动成功
     logger.info("隧道启动成功")

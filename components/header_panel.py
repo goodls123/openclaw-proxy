@@ -22,7 +22,7 @@ class HeaderPanel(ttk.Frame):
     def __init__(
         self,
         parent,
-        title: str = "OpenClaw 代理工具",
+        title: str = "OpenClaw连接代理",
         logo_size: int = 64,
         show_logo: bool = True,
     ):
