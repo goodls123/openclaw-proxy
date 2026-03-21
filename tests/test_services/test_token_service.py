@@ -87,10 +87,10 @@ class TestTokenServiceFetchTokenSync:
 
         service.fetch_token_sync()
 
-        mock_config_repo.save.assert_called_once()
-        # 验证保存的配置中包含新token
-        saved_config = mock_config_repo.save.call_args[0][0]
-        assert saved_config.browser.token == "new_fetched_token_xyz"
+        mock_config_repo.update_token.assert_called_once_with("new_fetched_token_xyz")
+        # 验证调用参数
+        call_args = mock_config_repo.update_token.call_args[0]
+        assert call_args[0] == "new_fetched_token_xyz"
 
     def test_fetch_token_sync_fetch_failure(self, mock_config_repo, mock_remote_config_repo_failure):
         """获取远程配置失败"""

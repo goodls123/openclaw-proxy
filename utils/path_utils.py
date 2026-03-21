@@ -3,7 +3,28 @@
 """
 
 import os
+import sys
 from typing import Optional
+
+
+def get_resource_path(relative_path: str) -> str:
+    """
+    获取资源文件的绝对路径（兼容开发环境和 PyInstaller 打包环境）
+
+    Args:
+        relative_path: 相对于项目根目录的路径，如 "resources/images/pc.png"
+
+    Returns:
+        资源文件的绝对路径
+    """
+    # PyInstaller 打包后，资源会被解压到 sys._MEIPASS 目录
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        # 开发环境，使用项目根目录
+        base_path = os.path.dirname(os.path.dirname(__file__))
+
+    return os.path.join(base_path, relative_path)
 
 
 def expand_path(path: str) -> str:

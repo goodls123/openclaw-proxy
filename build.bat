@@ -46,9 +46,9 @@ echo ========================================
 echo.
 
 :: 复制配置文件模板
-if not exist "dist\config.ini" (
+if not exist "dist\config.json" (
     echo [信息] 生成默认配置文件...
-    python -c "from repositories.config_repository import ConfigRepository; ConfigRepository('dist/config.ini').save(ConfigRepository('dist/config.ini').load())"
+    python -c "from repositories.json_config_repository import JsonConfigRepository; import os; repo = JsonConfigRepository('dist'); repo.save(repo.load_multi())"
 )
 
 echo 提示: 首次运行会自动生成配置文件

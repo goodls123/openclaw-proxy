@@ -15,7 +15,7 @@ from repositories.interfaces import IConfigRepository, IRemoteConfigRepository
 @pytest.fixture
 def temp_config_file(tmp_path):
     """创建临时配置文件路径"""
-    return str(tmp_path / "test_config.ini")
+    return str(tmp_path / "test_config.json")
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def mock_config_repo(sample_config):
     repo = Mock(spec=IConfigRepository)
     repo.load.return_value = sample_config
     repo.save.return_value = True
-    repo.config_file = "/tmp/test_config.ini"
+    repo.config_file = "/tmp/test_config.json"
     repo.has_backup.return_value = False
     repo.restore_backup.return_value = False
     return repo
@@ -91,7 +91,7 @@ def mock_config_repo_without_token(sample_config_without_token):
     repo = Mock(spec=IConfigRepository)
     repo.load.return_value = sample_config_without_token
     repo.save.return_value = True
-    repo.config_file = "/tmp/test_config.ini"
+    repo.config_file = "/tmp/test_config.json"
     return repo
 
 

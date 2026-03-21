@@ -90,3 +90,71 @@ def sanitize_log_message(message: str) -> str:
         if keyword in message.lower():
             return f"[敏感信息已隐藏]"
     return message
+
+
+class TkinterLogHandler(logging.Handler):
+    """
+    Tkinter日志处理器
+
+    将日志消息发送到Tkinter Text组件显示
+    """
+
+    def __init__(self, max_lines: int = 100):
+        super().__init__()
+        self._text_widget = None
+        self._max_lines = max_lines
+        self._pending_logs = []  # 在Text组件设置前暂存日志
+
+        # 简化的日志格式（只显示时间和消息）
+        self.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S"
+        ))
+
+    def set_text_widget(self, text_widget) -> None:
+        """设置Text组件"""
+        self._text_widget = text_widget
+        # 输出暂存的日志
+        if text_widget and self._pending_logs:
+            for level, log_msg in self._pending_logs:
+                self._append_to_widget(level, log_msg)
+            self._pending_logs.clear()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """处理日志记录"""
+        try:
+            msg = self.format(record)
+            level = record.levelname
+            if self._text_widget:
+                # 确保在主线程中更新UI
+                try:
+                    self._text_widget.after(0, lambda l=level, m=msg: self._append_to_widget(l, m))
+                except Exception:
+                    self._append_to_widget(level, msg)
+            else:
+                # 暂存日志 (级别, 消息)
+                self._pending_logs.append((level, msg))
+                if len(self._pending_logs) > self._max_lines:
+                    self._pending_logs.pop(0)
+        except Exception:
+            self.handleError(record)
+
+    def _append_to_widget(self, level: str, msg: str) -> None:
+        """将日志追加到Text组件"""
+        if not self._text_widget:
+            return
+
+        try:
+            # 添加日志行
+            self._text_widget.configure(state='normal')
+            self._text_widget.insert('end', msg + '\n', level)
+            self._text_widget.see('end')  # 滚动到底部
+
+            # 限制行数
+            line_count = int(self._text_widget.index('end-1c').split('.')[0])
+            if line_count > self._max_lines:
+                self._text_widget.delete('1.0', f'{line_count - self._max_lines}.0')
+
+            self._text_widget.configure(state='disabled')
+        except Exception:
+            pass

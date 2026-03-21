@@ -21,7 +21,7 @@ class TokenService(ITokenService):
 
     功能：
     1. 从远程配置获取token
-    2. 缓存token到内存和配置文件
+    2. 缓存token到内存（不保存到配置文件）
     3. 生成带token的浏览器URL
     """
 
@@ -48,16 +48,11 @@ class TokenService(ITokenService):
 
     def get_token(self) -> Optional[str]:
         """
-        获取token（优先内存缓存，其次配置文件）
+        获取token（仅从内存缓存）
 
         Returns:
             token字符串，没有则返回None
         """
-        if self._token:
-            return self._token
-
-        config = self._config_repo.load()
-        self._token = config.browser.token
         return self._token
 
     def fetch_token_sync(self) -> Tuple[bool, str]:
@@ -89,10 +84,7 @@ class TokenService(ITokenService):
         token_success, token_or_error = self._remote_config_repo.extract_token(remote_config)
         if token_success:
             self._token = token_or_error
-            # 保存到配置文件
-            config.browser.token = token_or_error
-            self._config_repo.save(config)
-            logger.info(f"[Token] 成功获取token并保存: {token_or_error[:8]}...")
+            logger.info(f"[Token] 成功获取token: {token_or_error[:8]}...")
             return True, token_or_error
         else:
             logger.warning(f"[Token] 提取token失败: {token_or_error}")

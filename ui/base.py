@@ -9,6 +9,8 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 from PIL import Image, ImageTk
 
+from utils.path_utils import get_resource_path
+
 if TYPE_CHECKING:
     pass
 
@@ -16,9 +18,8 @@ if TYPE_CHECKING:
 DEFAULT_FONT_FAMILY = "Microsoft YaHei UI"
 
 # 资源路径
-_RESOURCES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
-_ICON_PATH = os.path.join(_RESOURCES_DIR, "images", "favicon.ico")
-_LOGO_PATH = os.path.join(_RESOURCES_DIR, "images", "openclaw.png")
+_ICON_PATH = get_resource_path("resources/images/favicon.ico")
+_LOGO_PATH = get_resource_path("resources/images/openclaw.png")
 
 
 def get_font(size: int = 10, bold: bool = False) -> Tuple[str, int, str]:

@@ -170,6 +170,18 @@ class MainPresenter(BasePresenter):
         """打开浏览器"""
         return self.browser_service.open()
 
+    def open_browser_all_ports(self, server_id: Optional[str] = None) -> bool:
+        """
+        打开服务器所有端口映射对应的浏览器
+
+        Args:
+            server_id: 服务器ID，None则使用默认服务器
+
+        Returns:
+            是否成功
+        """
+        return self.browser_service.open_all_port_mappings(server_id)
+
     def open_browser_async(self, on_complete: Optional[Callable] = None) -> None:
         """
         异步打开浏览器（如果需要先获取token）
@@ -189,6 +201,35 @@ class MainPresenter(BasePresenter):
                     return
 
             self.open_browser()
+            if on_complete:
+                self._update_ui(on_complete, True)
+
+        threading.Thread(target=do_open, daemon=True).start()
+
+    def open_browser_all_ports_async(
+        self,
+        server_id: Optional[str] = None,
+        on_complete: Optional[Callable[[bool], None]] = None,
+    ) -> None:
+        """
+        异步打开服务器所有端口映射的浏览器
+
+        Args:
+            server_id: 服务器ID，None则使用默认服务器
+            on_complete: 完成回调
+        """
+        import threading
+
+        def do_open():
+            # 如果没有token，先获取
+            if not self.token_service.token:
+                success, _ = self.token_service.fetch_token_sync()
+                if not success:
+                    if on_complete:
+                        self._update_ui(on_complete, False)
+                    return
+
+            self.open_browser_all_ports(server_id)
             if on_complete:
                 self._update_ui(on_complete, True)
 

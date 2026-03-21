@@ -1,8 +1,8 @@
 """
 版本信息
 """
-__version__ = "0.0.2.0319"
-__version_info__ = (0, 0, 2)
+__version__ = "0.0.3.0320"
+__version_info__ = (0, 0, 3)
 
 # GitHub仓库信息
 GITHUB_REPO = "goodls123/openclaw-proxy"

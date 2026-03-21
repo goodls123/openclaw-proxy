@@ -16,6 +16,10 @@ a = Analysis(
     datas=[
         ('resources/images/favicon.ico', 'resources/images'),
         ('resources/images/openclaw.png', 'resources/images'),
+        ('resources/images/pc.png', 'resources/images'),
+        ('resources/images/add.png', 'resources/images'),
+        ('resources/images/run.png', 'resources/images'),
+        ('resources/images/stop.png', 'resources/images'),
     ],
     hiddenimports=[
         'paramiko',

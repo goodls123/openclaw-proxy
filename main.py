@@ -18,7 +18,7 @@ import argparse
 import logging
 from typing import Optional
 
-from utils import setup_logging, check_ssh_available, expand_path
+from utils import setup_logging, check_ssh_available
 from version import __version__
 
 # 全局变量
@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument("--edit-config", action="store_true", help="打开配置文件编辑")
 
     # 其他参数
-    parser.add_argument("--config-file", default="config.ini", help="配置文件路径")
+    parser.add_argument("--config-file", default="config.json", help="配置文件路径")
     parser.add_argument("--verbose", "-v", action="store_true", help="详细输出")
 
     return parser.parse_args()
@@ -84,15 +84,8 @@ def check_environment() -> tuple[bool, str]:
     return True, ""
 
 
-def check_key_exists() -> bool:
-    """检查密钥是否存在"""
-    config = _container.config_repo.load()
-    key_path = expand_path(config.ssh.key_path)
-    return os.path.exists(key_path)
-
-
 def run_gui_mode(title: str = "OpenClaw连接代理"):
-    """运行图形界面模式 - 使用新架构"""
+    """运行图形界面模式 """
     from ui.windows import MainWindow
 
     window = MainWindow(_container, title=title)
@@ -100,16 +93,11 @@ def run_gui_mode(title: str = "OpenClaw连接代理"):
     return 0
 
 
-def run_auto_mode():
+def run_gui_mode_with_check(title: str = "OpenClaw连接代理"):
     """
-    自动模式：
-    1. 检查配置，无配置则打开配置界面
-    2. 测试SSH连接
-    3. 失败则打开配置界面
-    4. 成功则启动代理并打开浏览器
+    启动GUI模式（带环境检查）
+    所有隧道由用户手动启动
     """
-    config = _container.config_repo.load()
-
     # 检查环境
     success, error = check_environment()
     if not success:
@@ -117,63 +105,7 @@ def run_auto_mode():
         messagebox.showerror("环境错误", error)
         return 1
 
-    # 检查密钥是否存在
-    if not check_key_exists():
-        logger.info("密钥不存在，打开配置界面")
-        return run_gui_mode()
-
-    # 测试SSH连接
-    logger.info("正在测试SSH连接...")
-    success, message = _container.key_service.test_connection(
-        host=config.ssh.host,
-        port=config.ssh.port,
-        user=config.ssh.user,
-        key_path=config.ssh.key_path,
-    )
-
-    if not success:
-        logger.error(f"SSH连接测试失败: {message}")
-        return run_gui_mode()
-
-    # 启动隧道
-    logger.info("正在启动SSH隧道...")
-    success, message = _container.tunnel_service.start()
-
-    if not success:
-        logger.error(f"启动失败: {message}")
-        return run_gui_mode()
-
-    # 等待连接建立
-    success, message = _container.tunnel_service.wait_for_connection(
-        timeout=config.browser.open_timeout
-    )
-    if not success:
-        _container.tunnel_service.stop()
-        logger.error(f"连接超时: {message}")
-        return run_gui_mode()
-
-    # 隧道启动成功
-    logger.info("隧道启动成功")
-
-    # 自动获取token
-    if config.browser.auto_fetch_token:
-        logger.info("正在获取token...")
-        token_success, _ = _container.token_service.fetch_token_sync()
-        if token_success:
-            logger.info("Token获取成功")
-
-    # 打开浏览器
-    if config.browser.auto_open:
-        url = _container.browser_service.get_url()
-        logger.info(f"正在打开浏览器: {url}")
-        _container.browser_service.open()
-
-    # 显示运行状态窗口
-    from ui.windows import MainWindow
-    app = MainWindow(_container)
-    app.run()
-
-    return 0
+    return run_gui_mode(title)
 
 
 def main():
@@ -188,7 +120,7 @@ def main():
         os.makedirs(user_config_dir)
 
     # 配置文件和日志目录都放在用户配置目录下
-    config_file = os.path.join(user_config_dir, "config.ini")
+    config_file = os.path.join(user_config_dir, "config.json")
     log_dir = os.path.join(user_config_dir, "logs")
 
     # 1. 初始化日志（最先）
@@ -204,7 +136,7 @@ def main():
 
     # 2. 创建服务容器（新架构）
     from app.container import ServiceContainer
-    _container = ServiceContainer.create(config_file)
+    _container = ServiceContainer.create(user_config_dir)
 
     # 3. 加载配置并应用命令行参数
     _container.config_repo.load()
@@ -223,8 +155,8 @@ def main():
             os.startfile(config_file)
         return 0
 
-    # 6. 自动模式
-    return run_auto_mode()
+    # 6. 启动GUI模式（所有隧道由用户手动启动）
+    return run_gui_mode_with_check()
 
 
 if __name__ == "__main__":

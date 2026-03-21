@@ -135,6 +135,10 @@ class KeyManager:
         if self.key_exists() and not overwrite:
             return False, f"密钥文件已存在: {self.key_path}"
 
+        # 如果覆盖且密钥存在，先删除旧密钥
+        if self.key_exists() and overwrite:
+            self.delete_key()
+
         # 确保目录存在
         key_dir = os.path.dirname(self.key_path)
         if not ensure_dir(key_dir):

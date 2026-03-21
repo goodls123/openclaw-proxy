@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         IConfigRepository,
         IRemoteConfigRepository,
     )
+    from services.multi_tunnel_service import MultiTunnelService
 
 
 @dataclass
@@ -32,6 +33,7 @@ class ServiceContainer:
 
     # 服务实例（懒加载）
     _tunnel_service: Optional["ITunnelService"] = field(default=None, repr=False)
+    _multi_tunnel_service: Optional["MultiTunnelService"] = field(default=None, repr=False)
     _key_service: Optional["IKeyService"] = field(default=None, repr=False)
     _token_service: Optional["ITokenService"] = field(default=None, repr=False)
     _browser_service: Optional["IBrowserService"] = field(default=None, repr=False)
@@ -45,6 +47,19 @@ class ServiceContainer:
 
             self._tunnel_service = TunnelService(self.config_repo)
         return self._tunnel_service
+
+    @property
+    def multi_tunnel_service(self) -> "MultiTunnelService":
+        """获取多隧道服务"""
+        if self._multi_tunnel_service is None:
+            from services.multi_tunnel_service import MultiTunnelService
+            from repositories.json_config_repository import JsonConfigRepository
+            import os
+
+            config_dir = os.path.dirname(self.config_repo._config_file)
+            json_repo = JsonConfigRepository(config_dir)
+            self._multi_tunnel_service = MultiTunnelService(json_repo)
+        return self._multi_tunnel_service
 
     @property
     def key_service(self) -> "IKeyService":
@@ -89,19 +104,21 @@ class ServiceContainer:
         return self._update_service
 
     @classmethod
-    def create(cls, config_file: str) -> "ServiceContainer":
+    def create(cls, config_dir: str) -> "ServiceContainer":
         """
         创建服务容器
 
         Args:
-            config_file: 配置文件路径
+            config_dir: 配置文件目录
 
         Returns:
             服务容器实例
         """
+        import os
         from repositories.config_repository import ConfigRepository
         from repositories.remote_config_repository import RemoteConfigRepository
 
+        config_file = os.path.join(config_dir, "config.json")
         config_repo = ConfigRepository(config_file)
         remote_config_repo = RemoteConfigRepository()
 
@@ -110,6 +127,7 @@ class ServiceContainer:
     def reset_services(self) -> None:
         """重置所有服务实例（用于配置变更后）"""
         self._tunnel_service = None
+        self._multi_tunnel_service = None
         self._key_service = None
         self._token_service = None
         self._browser_service = None

@@ -42,12 +42,12 @@ class PortMappingFrame(ttk.LabelFrame):
 
     def _create_widgets(self) -> None:
         """创建组件"""
-        # 表头：远程地址 | 远程端口 | 本地端口 | 操作
+        # 表头：远程地址 | 远程端口 | 本地端口 | OpenClaw | 操作
         header_frame = ttk.Frame(self)
         header_frame.pack(fill=tk.X, pady=(0, 5))
 
-        headers = ["远程地址", "远程端口", "本地端口", "操作"]
-        widths = [14, 10, 10, 6]
+        headers = ["远程地址", "远程端口", "本地端口", "OpenClaw", "操作"]
+        widths = [12, 10, 10, 10, 6]
         for col, (header, width) in enumerate(zip(headers, widths)):
             ttk.Label(
                 header_frame,
@@ -64,47 +64,9 @@ class PortMappingFrame(ttk.LabelFrame):
             command=self._add_mapping,
         ).grid(row=0, column=len(headers), padx=2)
 
-        # 映射列表区域（带滚动条）
-        list_frame = ttk.Frame(self)
-        list_frame.pack(fill=tk.BOTH, expand=True)
-
-        # 使用 Canvas 和 Frame 实现滚动
-        self.canvas = tk.Canvas(list_frame, highlightthickness=0, height=120)
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.canvas.yview)
-        self.scroll_frame = ttk.Frame(self.canvas)
-
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        self.scroll_frame.bind("<Configure>", self._on_frame_configure)
-        self.canvas.bind("<Configure>", self._on_canvas_configure)
-
-        # 按钮区域
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(fill=tk.X, pady=(8, 0))
-
-        ttk.Button(
-            btn_frame,
-            text="添加映射",
-            command=self._add_mapping,
-            width=10,
-        ).pack(side=tk.LEFT, padx=2)
-        ttk.Button(
-            btn_frame,
-            text="添加常用",
-            command=self._show_presets,
-            width=10,
-        ).pack(side=tk.LEFT, padx=2)
-
-    def _on_frame_configure(self, event=None) -> None:
-        """更新滚动区域"""
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-    def _on_canvas_configure(self, event) -> None:
-        """调整内部框架宽度"""
-        self.canvas.itemconfig(self.canvas_window, width=event.width)
+        # 映射列表区域（直接使用Frame，滚动由父组件处理）
+        self._list_frame = ttk.Frame(self)
+        self._list_frame.pack(fill=tk.BOTH, expand=True)
 
     def _add_mapping(self, mapping: Optional[PortMapping] = None) -> None:
         """
@@ -122,19 +84,21 @@ class PortMappingFrame(ttk.LabelFrame):
         local_port_var = tk.StringVar(value=str(mapping.local_port))
         remote_host_var = tk.StringVar(value=mapping.remote_host)
         remote_port_var = tk.StringVar(value=str(mapping.remote_port))
+        is_openclaw_var = tk.BooleanVar(value=mapping.is_openclaw)
 
         vars_dict = {
             "local_host": tk.StringVar(value="127.0.0.1"),  # 固定本地地址
             "local_port": local_port_var,
             "remote_host": remote_host_var,
             "remote_port": remote_port_var,
+            "is_openclaw": is_openclaw_var,
             "row_index": row_index,
             "row_frame": None,  # 稍后设置
         }
         self.mapping_rows.append(vars_dict)
 
-        # 创建控件：远程地址 | 远程端口 | 本地端口 | 操作
-        row_frame = ttk.Frame(self.scroll_frame)
+        # 创建控件：远程地址 | 远程端口 | 本地端口 | OpenClaw | 操作
+        row_frame = ttk.Frame(self._list_frame)
         row_frame.grid(row=row_index, column=0, sticky="ew", pady=2)
         vars_dict["row_frame"] = row_frame
 
@@ -142,16 +106,16 @@ class PortMappingFrame(ttk.LabelFrame):
         ttk.Entry(row_frame, textvariable=remote_port_var, width=10).grid(row=0, column=1, padx=2)
         ttk.Entry(row_frame, textvariable=local_port_var, width=10).grid(row=0, column=2, padx=2)
 
+        # OpenClaw 复选框
+        ttk.Checkbutton(row_frame, variable=is_openclaw_var).grid(row=0, column=3, padx=2)
+
         # 删除按钮
         ttk.Button(
             row_frame,
             text="删除",
             width=5,
             command=lambda: self._remove_mapping(vars_dict),
-        ).grid(row=0, column=3, padx=2)
-
-        # 更新滚动区域
-        self._on_frame_configure()
+        ).grid(row=0, column=4, padx=2)
 
         if self.on_change:
             self.on_change()
@@ -159,7 +123,7 @@ class PortMappingFrame(ttk.LabelFrame):
     def _remove_mapping(self, vars_dict: dict) -> None:
         """删除一行映射"""
         # 找到对应的 row_frame 并销毁
-        for widget in self.scroll_frame.winfo_children():
+        for widget in self._list_frame.winfo_children():
             if widget.grid_info().get("row") == vars_dict["row_index"]:
                 widget.destroy()
                 break
@@ -243,6 +207,7 @@ class PortMappingFrame(ttk.LabelFrame):
                         local_port=local_port,
                         remote_host=vars_dict["remote_host"].get().strip() or "127.0.0.1",
                         remote_port=remote_port,
+                        is_openclaw=vars_dict["is_openclaw"].get(),
                     )
                     mappings.append(mapping)
             except ValueError:
@@ -257,7 +222,7 @@ class PortMappingFrame(ttk.LabelFrame):
             mappings: 端口映射列表
         """
         # 清空现有行
-        for widget in self.scroll_frame.winfo_children():
+        for widget in self._list_frame.winfo_children():
             widget.destroy()
         self.mapping_rows.clear()
 
@@ -267,6 +232,6 @@ class PortMappingFrame(ttk.LabelFrame):
 
     def clear(self) -> None:
         """清空所有映射"""
-        for widget in self.scroll_frame.winfo_children():
+        for widget in self._list_frame.winfo_children():
             widget.destroy()
         self.mapping_rows.clear()

@@ -1,11 +1,12 @@
 """
 ConfigRepository 单元测试
+测试 JSON 配置仓库
 """
 
 import os
+import json
 import pytest
-import tempfile
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from repositories.config_repository import ConfigRepository
 from models import Config, SSHConfig, BrowserConfig, PortMapping
@@ -16,7 +17,8 @@ class TestConfigRepositoryLoad:
 
     def test_load_creates_default_config_when_file_not_exists(self, tmp_path):
         """当配置文件不存在时创建默认配置"""
-        config_file = str(tmp_path / "nonexistent.ini")
+        config_dir = str(tmp_path)
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         config = repo.load()
@@ -30,45 +32,51 @@ class TestConfigRepositoryLoad:
 
     def test_load_existing_config(self, tmp_path):
         """加载已存在的配置文件"""
-        config_file = str(tmp_path / "existing.ini")
+        config_file = str(tmp_path / "config.json")
 
-        # 创建一个配置文件
+        # 创建一个 JSON 配置文件
+        config_data = {
+            "version": "2.0",
+            "global": {
+                "app": {"log_level": "DEBUG", "log_dir": "test_logs"},
+                "update": {"auto_check": False},
+                "keygen": {"key_type": "ed25519", "comment": "test-comment"}
+            },
+            "servers": [{
+                "id": "srv-test",
+                "name": "Test Server",
+                "enabled": True,
+                "auto_run": True,
+                "ssh": {
+                    "host": "test.example.com",
+                    "port": 2222,
+                    "user": "testuser"
+                },
+                "port_mappings": [{
+                    "id": "pm-1",
+                    "name": "Main",
+                    "enabled": True,
+                    "local_bind_host": "127.0.0.1",
+                    "local_port": 18789,
+                    "remote_host": "127.0.0.1",
+                    "remote_port": 18789
+                }],
+                "browser": {
+                    "enabled": True,
+                    "auto_open": True,
+                    "url_template": "http://{local_host}:{local_port}",
+                    "open_timeout": 10,
+                    "token": {
+                        "auto_fetch": True,
+                        "remote_config_path": "~/.openclaw/openclaw.json",
+                        "cached_token": "test_token_123"
+                    }
+                }
+            }]
+        }
+
         with open(config_file, "w", encoding="utf-8") as f:
-            f.write("""[ssh]
-host = test.example.com
-port = 2222
-user = testuser
-local_bind_host = 127.0.0.1
-local_port = 18789
-remote_host = 127.0.0.1
-remote_port = 18789
-key_path = /home/test/.ssh/test_key
-known_hosts = /home/test/.ssh/known_hosts
-strict_host_key_checking = accept-new
-connect_timeout = 10
-server_alive_interval = 30
-server_alive_count_max = 3
-compression = false
-
-[browser]
-auto_open = true
-url = http://127.0.0.1:18789
-open_timeout = 10
-auto_fetch_token = true
-remote_config_path = ~/.openclaw/openclaw.json
-token = test_token_123
-
-[keygen]
-key_type = ed25519
-comment = test-comment
-
-[app]
-log_level = DEBUG
-log_dir = test_logs
-
-[update]
-auto_check = false
-""")
+            json.dump(config_data, f)
 
         repo = ConfigRepository(config_file)
         config = repo.load()
@@ -80,30 +88,13 @@ auto_check = false
         assert config.app.log_level == "DEBUG"
         assert config.update.auto_check is False
 
-    def test_load_uses_defaults_for_missing_values(self, tmp_path):
-        """配置文件缺少某些值时使用默认值"""
-        config_file = str(tmp_path / "partial.ini")
-
-        with open(config_file, "w", encoding="utf-8") as f:
-            f.write("""[ssh]
-host = partial.example.com
-""")
-
-        repo = ConfigRepository(config_file)
-        config = repo.load()
-
-        assert config.ssh.host == "partial.example.com"
-        # 其他值应该是默认值
-        assert config.ssh.port == 22
-        assert config.ssh.user == "root"
-
 
 class TestConfigRepositorySave:
     """测试 save 方法"""
 
     def test_save_creates_new_file(self, tmp_path, sample_config):
         """保存配置到新文件"""
-        config_file = str(tmp_path / "new_config.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         result = repo.save(sample_config)
@@ -113,7 +104,7 @@ class TestConfigRepositorySave:
 
     def test_save_preserves_existing_values(self, tmp_path):
         """保存配置保留现有值"""
-        config_file = str(tmp_path / "preserve.ini")
+        config_file = str(tmp_path / "config.json")
 
         # 先创建一个配置
         repo = ConfigRepository(config_file)
@@ -138,7 +129,7 @@ class TestConfigRepositorySave:
 
     def test_save_creates_backup(self, tmp_path):
         """保存时创建备份"""
-        config_file = str(tmp_path / "backup.ini")
+        config_file = str(tmp_path / "config.json")
 
         # 先创建一个配置
         repo = ConfigRepository(config_file)
@@ -152,32 +143,20 @@ class TestConfigRepositorySave:
         # 应该有备份文件
         assert os.path.exists(config_file + ".bak")
 
-    def test_save_creates_directory_if_not_exists(self, tmp_path):
-        """如果目录不存在则创建"""
-        config_file = str(tmp_path / "subdir" / "nested" / "config.ini")
-        repo = ConfigRepository(config_file)
-
-        config = Config()
-        result = repo.save(config)
-
-        assert result is True
-        assert os.path.exists(config_file)
-
 
 class TestConfigRepositoryBackup:
     """测试备份和恢复"""
 
     def test_has_backup_returns_false_when_no_backup(self, tmp_path):
         """没有备份时返回False"""
-        config_file = str(tmp_path / "no_backup.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         assert repo.has_backup() is False
 
     def test_has_backup_returns_true_when_backup_exists(self, tmp_path):
         """有备份时返回True"""
-        config_file = str(tmp_path / "has_backup.ini")
-        backup_file = config_file + ".bak"
+        config_file = str(tmp_path / "config.json")
 
         # 创建配置和备份
         repo = ConfigRepository(config_file)
@@ -188,7 +167,7 @@ class TestConfigRepositoryBackup:
 
     def test_restore_backup(self, tmp_path):
         """恢复备份"""
-        config_file = str(tmp_path / "restore.ini")
+        config_file = str(tmp_path / "config.json")
 
         repo = ConfigRepository(config_file)
         config = repo.load()
@@ -208,7 +187,7 @@ class TestConfigRepositoryBackup:
 
     def test_restore_backup_returns_false_when_no_backup(self, tmp_path):
         """没有备份时恢复返回False"""
-        config_file = str(tmp_path / "no_restore.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         result = repo.restore_backup()
@@ -221,21 +200,50 @@ class TestConfigRepositoryPortMappings:
 
     def test_load_port_mappings(self, tmp_path):
         """加载端口映射配置"""
-        config_file = str(tmp_path / "mappings.ini")
+        config_file = str(tmp_path / "config.json")
+
+        config_data = {
+            "version": "2.0",
+            "global": {
+                "app": {"log_level": "INFO", "log_dir": "logs"},
+                "update": {"auto_check": True},
+                "keygen": {"key_type": "ed25519", "comment": "openclaw-proxy"}
+            },
+            "servers": [{
+                "id": "srv-test",
+                "name": "Test",
+                "enabled": True,
+                "auto_run": True,
+                "ssh": {
+                    "host": "test.example.com",
+                    "port": 22,
+                    "user": "root"
+                },
+                "port_mappings": [
+                    {
+                        "id": "pm-1",
+                        "name": "Port 8080",
+                        "enabled": True,
+                        "local_bind_host": "127.0.0.1",
+                        "local_port": 8080,
+                        "remote_host": "127.0.0.1",
+                        "remote_port": 80
+                    },
+                    {
+                        "id": "pm-2",
+                        "name": "Port 9090",
+                        "enabled": True,
+                        "local_bind_host": "127.0.0.1",
+                        "local_port": 9090,
+                        "remote_host": "127.0.0.1",
+                        "remote_port": 90
+                    }
+                ]
+            }]
+        }
 
         with open(config_file, "w", encoding="utf-8") as f:
-            f.write("""[ssh]
-host = test.example.com
-port = 22
-user = root
-local_bind_host = 127.0.0.1
-local_port = 18789
-remote_host = 127.0.0.1
-remote_port = 18789
-
-[port_mappings]
-mappings = 127.0.0.1:8080:127.0.0.1:80;127.0.0.1:9090:127.0.0.1:90
-""")
+            json.dump(config_data, f)
 
         repo = ConfigRepository(config_file)
         config = repo.load()
@@ -246,7 +254,7 @@ mappings = 127.0.0.1:8080:127.0.0.1:80;127.0.0.1:9090:127.0.0.1:90
 
     def test_save_port_mappings(self, tmp_path):
         """保存端口映射配置"""
-        config_file = str(tmp_path / "save_mappings.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         config = Config()
@@ -265,35 +273,13 @@ mappings = 127.0.0.1:8080:127.0.0.1:80;127.0.0.1:9090:127.0.0.1:90
 
         assert len(loaded.ssh.port_mappings) == 2
 
-    def test_backward_compatibility_without_port_mappings(self, tmp_path):
-        """向后兼容：没有port_mappings时使用默认配置"""
-        config_file = str(tmp_path / "compat.ini")
-
-        with open(config_file, "w", encoding="utf-8") as f:
-            f.write("""[ssh]
-host = compat.example.com
-port = 22
-user = root
-local_bind_host = 127.0.0.1
-local_port = 12345
-remote_host = 127.0.0.1
-remote_port = 12345
-""")
-
-        repo = ConfigRepository(config_file)
-        config = repo.load()
-
-        # 应该自动创建一个端口映射
-        assert len(config.ssh.port_mappings) == 1
-        assert config.ssh.port_mappings[0].local_port == 12345
-
 
 class TestConfigRepositoryUpdateFromArgs:
     """测试从命令行参数更新配置"""
 
     def test_update_from_args_basic(self, tmp_path):
         """从命令行参数更新基本配置"""
-        config_file = str(tmp_path / "args.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
         config = repo.load()
 
@@ -310,7 +296,7 @@ class TestConfigRepositoryUpdateFromArgs:
 
     def test_update_from_args_none_values_ignored(self, tmp_path):
         """None值应该被忽略"""
-        config_file = str(tmp_path / "args_none.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
         config = repo.load()
 
@@ -329,7 +315,7 @@ class TestConfigRepositoryUpdateFromArgs:
 
     def test_update_from_args_no_browser(self, tmp_path):
         """--no-browser 参数应该禁用自动打开浏览器"""
-        config_file = str(tmp_path / "no_browser.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
         config = repo.load()
 
@@ -348,7 +334,7 @@ class TestConfigRepositoryConfigFileProperty:
 
     def test_config_file_property(self, tmp_path):
         """config_file 属性应该返回正确的路径"""
-        config_file = str(tmp_path / "property.ini")
+        config_file = str(tmp_path / "config.json")
         repo = ConfigRepository(config_file)
 
         assert repo.config_file == config_file

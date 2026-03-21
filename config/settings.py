@@ -15,7 +15,7 @@ class Settings:
         # 应用配置目录
         self.config_dir = os.path.join(os.path.expanduser("~"), ".openclaw-proxy")
         # 配置文件路径
-        self.config_file = os.path.join(self.config_dir, "config.ini")
+        self.config_file = os.path.join(self.config_dir, "config.json")
         # 日志目录
         self.log_dir = os.path.join(self.config_dir, "logs")
         # 日志级别

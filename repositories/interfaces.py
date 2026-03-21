@@ -24,6 +24,19 @@ class IConfigRepository(Protocol):
         """保存配置"""
         ...
 
+    def update_token(self, token: str, server_id: str = None) -> bool:
+        """
+        更新指定服务器的 cached_token
+
+        Args:
+            token: 新的 token 值
+            server_id: 服务器ID，None 表示默认服务器
+
+        Returns:
+            是否成功
+        """
+        ...
+
     def has_backup(self) -> bool:
         """是否有备份"""
         ...

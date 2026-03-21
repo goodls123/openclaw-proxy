@@ -42,7 +42,7 @@ class Application:
 
         # 确定配置文件路径
         if config_file is None:
-            config_file = os.path.join(self.settings.config_dir, "config.ini")
+            config_file = os.path.join(self.settings.config_dir, "config.json")
         self.config_file = config_file
         self.logger.info(f"配置文件: {self.config_file}")
 

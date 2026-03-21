@@ -13,6 +13,7 @@ class PortMapping:
     local_port: int = 18789  # 本地端口
     remote_host: str = "127.0.0.1"  # 远程目标地址
     remote_port: int = 18789  # 远程目标端口
+    is_openclaw: bool = False  # 是否为 OpenClaw 服务
 
     def to_string(self) -> str:
         """序列化为配置字符串：本地地址:本地端口:远程地址:远程端口"""
