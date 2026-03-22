@@ -6,6 +6,7 @@
 import json
 import logging
 import os
+import ssl
 import threading
 import urllib.request
 import urllib.error
@@ -17,6 +18,15 @@ from services.interfaces import IUpdateService, IConfigRepository
 from version import __version__, GITHUB_REPO, GITHUB_RELEASES_URL
 
 logger = logging.getLogger("openclaw_proxy")
+
+# 尝试导入 certifi，如果失败则使用系统证书
+try:
+    import certifi
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    # certifi 未安装时使用系统默认证书
+    SSL_CONTEXT = ssl.create_default_context()
+    logger.debug("certifi 未安装，使用系统默认证书")
 
 # GitHub API配置
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -109,7 +119,7 @@ def fetch_latest_release() -> Tuple[bool, Optional[ReleaseInfo], Optional[str]]:
         request.add_header('User-Agent', f'OpenClaw-Proxy/{__version__}')
         request.add_header('Accept', 'application/vnd.github.v3+json')
 
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT, context=SSL_CONTEXT) as response:
             if response.status != 200:
                 return False, None, f"HTTP状态码: {response.status}"
 

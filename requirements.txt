@@ -3,5 +3,8 @@
 # SSH库 - 用于公钥部署
 paramiko>=3.0.0
 
+# SSL证书 - 用于HTTPS请求
+certifi>=2024.0.0
+
 # 打包工具（开发时需要）
 pyinstaller>=6.0.0
