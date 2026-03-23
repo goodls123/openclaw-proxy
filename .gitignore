@@ -17,6 +17,9 @@ venv/
 .venv/
 env/
 
+# openclaw 工作空间
+openclaw/dev
+
 # IDE
 .idea/
 .vscode/
@@ -33,3 +36,4 @@ Thumbs.db
 # 本地配置
 *.local
 .env
+.gitignore
