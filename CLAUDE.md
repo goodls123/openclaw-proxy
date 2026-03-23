@@ -19,8 +19,8 @@ openclaw-proxy/
 ├── version.py                 # 版本信息
 ├── requirements.txt           # 依赖（paramiko, pyinstaller, Pillow）
 ├── build.spec / build.bat     # PyInstaller 打包配置
-├── config.json                # 默认配置模板
-├── dpi.manifest              # Windows DPI 清单
+├── dpi.manifest               # Windows DPI 清单
+├── CHANGELOG.md               # 版本变更记录
 │
 ├── app/                       # 应用启动和依赖注入
 │   ├── container.py           # ServiceContainer 依赖注入容器
@@ -63,10 +63,11 @@ openclaw-proxy/
 │   ├── windows/               # 窗口
 │   │   └── main_window.py     # 主窗口
 │   └── dialogs/               # 对话框
-│       ├── update_dialog.py   # 更新对话框
-│       ├── add_server_dialog.py  # 添加服务器对话框
-│       ├── config_dialog.py   # SSH配置对话框
-│       └── security_dialog.py # 密钥管理对话框
+│       ├── update_dialog.py        # 更新对话框
+│       ├── update_config_dialog.py # 更新配置对话框
+│       ├── add_server_dialog.py    # 添加服务器对话框
+│       ├── config_dialog.py        # SSH配置对话框
+│       └── security_dialog.py      # 密钥管理对话框
 │
 ├── components/                # 可复用UI组件
 │   ├── header_panel.py        # 头部面板（Logo、标题）
@@ -81,12 +82,20 @@ openclaw-proxy/
 │   └── path_utils.py          # 路径处理
 │
 ├── resources/                 # 资源文件
-│   └── images/                # 图片资源（favicon.ico, pc.png, run.png, stop.png, add.png）
+│   └── images/                # 图片资源
+│       ├── favicon.ico        # 应用图标
+│       ├── openclaw.png       # OpenClaw Logo
+│       ├── pc.png             # 服务器图标
+│       ├── run.png            # 运行状态图标
+│       ├── stop.png           # 停止状态图标
+│       └── add.png            # 添加按钮图标
 │
 ├── tests/                     # 测试
 │   ├── conftest.py            # pytest fixtures
 │   ├── test_services/         # 服务层测试
+│   │   └── test_token_service.py
 │   ├── test_repositories/     # 仓库层测试
+│   │   └── test_config_repository.py
 │   ├── test_presenters/       # Presenter测试
 │   └── test_ui/               # UI测试
 │

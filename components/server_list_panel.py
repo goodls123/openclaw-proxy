@@ -21,6 +21,8 @@ class ServerItem(tk.Frame):
         is_connected: bool = False,
         on_toggle: Optional[Callable[[str], None]] = None,
         on_config: Optional[Callable[[str], None]] = None,
+        on_start_proxy: Optional[Callable[[str], None]] = None,
+        on_delete: Optional[Callable[[str], None]] = None,
         on_open_browser: Optional[Callable[[str], None]] = None,
     ):
         super().__init__(parent, bg="#f5f5f5", cursor="hand2")
@@ -30,8 +32,10 @@ class ServerItem(tk.Frame):
         self._host = host
         self._is_connected = is_connected
         self._on_toggle = on_toggle  # 左键：开启/停止代理
-        self._on_config = on_config  # 右键菜单：打开配置
+        self._on_start_proxy = on_start_proxy  # 右键菜单：启动/停止代理
+        self._on_delete = on_delete  # 右键菜单：删除代理
         self._on_open_browser = on_open_browser  # 右键菜单：浏览器打开
+        self._on_config = on_config  # 右键菜单：修改配置
 
         self._menu = None  # 右键菜单
         self._create_widgets()
@@ -145,8 +149,16 @@ class ServerItem(tk.Frame):
         """显示上下文菜单"""
         # 创建菜单
         self._menu = tk.Menu(self, tearoff=0)
-        self._menu.add_command(label="连接配置", command=self._on_menu_config)
-        self._menu.add_command(label="浏览器打开", command=self._on_menu_open_browser)
+        # 根据连接状态显示不同的菜单文字
+        proxy_label = "停止代理" if self._is_connected else "启动代理"
+        self._menu.add_command(label=proxy_label, command=self._on_menu_start_proxy)
+        # 浏览器打开仅在服务器运行时可用
+        browser_state = "normal" if self._is_connected else "disabled"
+        self._menu.add_command(label="浏览器打开", command=self._on_menu_open_browser, state=browser_state)
+
+        self._menu.add_command(label="修改配置", command=self._on_menu_config)
+        self._menu.add_separator()
+        self._menu.add_command(label="删除代理", command=self._on_menu_delete)
 
         # 显示菜单
         try:
@@ -158,6 +170,16 @@ class ServerItem(tk.Frame):
         """菜单：打开SSH配置"""
         if self._on_config:
             self._on_config(self._server_id)
+
+    def _on_menu_delete(self) -> None:
+        """菜单：删除代理"""
+        if self._on_delete:
+            self._on_delete(self._server_id)
+
+    def _on_menu_start_proxy(self) -> None:
+        """菜单：启动代理"""
+        if self._on_start_proxy:
+            self._on_start_proxy(self._server_id)
 
     def _on_menu_open_browser(self) -> None:
         """菜单：浏览器打开"""
@@ -297,13 +319,17 @@ class ServerListPanel(ttk.Frame):
         parent,
         on_server_toggle: Optional[Callable[[str], None]] = None,
         on_server_config: Optional[Callable[[str], None]] = None,
+        on_server_start_proxy: Optional[Callable[[str], None]] = None,
+        on_server_delete: Optional[Callable[[str], None]] = None,
         on_server_open_browser: Optional[Callable[[str], None]] = None,
         on_add_server: Optional[Callable[[], None]] = None,
     ):
         super().__init__(parent)
 
         self._on_server_toggle = on_server_toggle  # 左键：开启/停止代理
-        self._on_server_config = on_server_config  # 右键菜单：打开配置
+        self._on_server_config = on_server_config  # 右键菜单：修改配置
+        self._on_server_start_proxy = on_server_start_proxy  # 右键菜单：启动/停止代理
+        self._on_server_delete = on_server_delete  # 右键菜单：删除代理
         self._on_server_open_browser = on_server_open_browser  # 右键菜单：浏览器打开
         self._on_add_server = on_add_server
         self._server_items: dict[str, ServerItem] = {}
@@ -409,6 +435,8 @@ class ServerListPanel(ttk.Frame):
             is_connected=is_connected,
             on_toggle=self._on_server_toggle_event,
             on_config=self._on_server_config_event,
+            on_start_proxy=self._on_server_start_proxy_event,
+            on_delete=self._on_server_delete_event,
             on_open_browser=self._on_server_open_browser_event,
         )
         item.pack(side=tk.LEFT, padx=5, pady=5)
@@ -464,6 +492,16 @@ class ServerListPanel(ttk.Frame):
         """服务器右键菜单 - 打开配置"""
         if self._on_server_config:
             self._on_server_config(server_id)
+
+    def _on_server_start_proxy_event(self, server_id: str) -> None:
+        """服务器右键菜单 - 启动/停止代理"""
+        if self._on_server_start_proxy:
+            self._on_server_start_proxy(server_id)
+
+    def _on_server_delete_event(self, server_id: str) -> None:
+        """服务器右键菜单 - 删除代理"""
+        if self._on_server_delete:
+            self._on_server_delete(server_id)
 
     def _on_server_open_browser_event(self, server_id: str) -> None:
         """服务器右键菜单 - 浏览器打开"""

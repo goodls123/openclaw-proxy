@@ -72,6 +72,8 @@ class MainWindow(BaseWindow):
             main_frame,
             on_server_toggle=self._on_server_toggle,
             on_server_config=self._on_server_config,
+            on_server_start_proxy=self._on_server_toggle,
+            on_server_delete=self._on_server_delete,
             on_server_open_browser=self._on_server_open_browser,
             on_add_server=self._on_add_server,
         )
@@ -110,7 +112,7 @@ class MainWindow(BaseWindow):
         """设置日志显示面板"""
         # 日志面板容器
         log_frame = ttk.LabelFrame(parent, text="运行日志", padding=5)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
         # 创建带滚动条的Text组件
         log_container = ttk.Frame(log_frame)
@@ -250,6 +252,49 @@ class MainWindow(BaseWindow):
         """服务器右键菜单 - 浏览器打开"""
         self._current_server_id = server_id
         self._open_browser()
+
+    def _on_server_delete(self, server_id: str) -> None:
+        """服务器右键菜单 - 删除代理"""
+        # 获取服务器名称用于确认对话框
+        server_name = server_id
+        config = self._container.config_repo.load()
+        if hasattr(config, 'servers'):
+            for server in config.servers:
+                if server.id == server_id:
+                    server_name = server.name
+                    break
+
+        # 弹出确认对话框
+        result = messagebox.askyesno(
+            "确认删除",
+            f"确定要删除代理 \"{server_name}\" 吗？\n\n此操作将从配置文件中移除该服务器配置。",
+            parent=self.root
+        )
+        if not result:
+            return
+
+        # 如果服务器正在运行，先停止
+        if self._server_list.is_server_connected(server_id):
+            self._container.multi_tunnel_service.stop_server(server_id)
+            self._server_list.set_server_connected(server_id, False)
+
+        # 从配置文件中删除
+        import os
+        from repositories.json_config_repository import JsonConfigRepository
+        config_dir = os.path.dirname(self._container.config_repo._config_file)
+        json_repo = JsonConfigRepository(config_dir)
+        json_repo.remove_server(server_id)
+
+        # 从列表中移除
+        self._server_list.remove_server(server_id)
+
+        # 如果删除的是当前选中的服务器，清除选中状态
+        if self._current_server_id == server_id:
+            self._current_server_id = None
+            self._is_tunnel_running = False
+            self._toggle_btn.config(text="启动代理", state=tk.NORMAL)
+
+        messagebox.showinfo("删除成功", f"代理 \"{server_name}\" 已删除", parent=self.root)
 
     def _open_server_config(self, server_id: str) -> None:
         """打开指定服务器的SSH配置"""
