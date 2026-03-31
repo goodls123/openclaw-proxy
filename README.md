@@ -353,6 +353,85 @@ pyinstaller build.spec --clean
 
 ---
 
+## 发布流程
+
+### 自动发布 (推荐)
+
+项目使用 GitHub Actions 自动构建和发布，支持 Windows 和 macOS 双平台。
+
+#### 触发方式
+
+1. **推送标签** (推荐)
+   ```bash
+   # 创建并推送标签
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **手动触发**
+   - 进入 GitHub Actions 页面
+   - 选择 "Build and Release" 工作流
+   - 点击 "Run workflow"
+   - 可选：输入版本号
+
+#### 产物
+
+| 平台 | 文件名 | 说明 |
+|------|--------|------|
+| Windows | `xia_proxy_win.exe` | Windows 10/11 (64-bit) |
+| macOS Intel | `xia_proxy_macos-x86_64` | macOS Intel (x86_64) |
+| macOS Apple Silicon | `xia_proxy_macos-arm64` | macOS M1/M2/M3 (arm64) |
+
+### 本地构建
+
+#### Windows
+```bash
+# 安装依赖
+pip install -r requirements.txt
+pip install pyinstaller
+
+# 打包
+build.bat
+
+# 产物位置
+dist\xia_proxy_win.exe
+```
+
+#### macOS
+```bash
+# 安装依赖
+pip3 install -r requirements.txt
+pip3 install pyinstaller
+
+# 打包 (当前架构)
+./scripts/build-macos.sh
+
+# 打包 Intel 版本
+ARCH=x86_64 ./scripts/build-macos.sh
+
+# 打包 Apple Silicon 版本
+ARCH=arm64 ./scripts/build-macos.sh
+
+# 产物位置
+dist/xia_proxy_macos-{arch}
+```
+
+### 版本号规则
+
+版本号格式: `MAJOR.MINOR.PATCH.BUILD`
+
+- **MAJOR**: 重大版本更新
+- **MINOR**: 功能更新
+- **PATCH**: Bug 修复
+- **BUILD**: 构建号 (可选)
+
+版本来源优先级:
+1. Git 标签 (如 `v1.0.0`)
+2. `version.py` 文件
+3. 默认值 `0.0.0`
+
+---
+
 ## 版本历史
 
 ### 当前版本: 0.0.2.0320
