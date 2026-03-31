@@ -219,21 +219,29 @@ class ITokenService(Protocol):
         """获取token（优先内存缓存，其次配置文件）"""
         ...
 
-    def fetch_token_sync(self) -> Tuple[bool, str]:
+    def fetch_token_sync(self, server_id: Optional[str] = None) -> Tuple[bool, str]:
         """
         同步获取token
+
+        Args:
+            server_id: 服务器ID，None则使用默认服务器
 
         Returns:
             (是否成功, token或错误信息)
         """
         ...
 
-    def fetch_token_async(self, callback: Callable[[bool, str], None]) -> None:
+    def fetch_token_async(
+        self,
+        callback: Callable[[bool, str], None],
+        server_id: Optional[str] = None,
+    ) -> None:
         """
         异步获取token
 
         Args:
             callback: 回调函数，参数为(是否成功, token或错误信息)
+            server_id: 服务器ID，None则使用默认服务器
         """
         ...
 

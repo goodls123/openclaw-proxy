@@ -10,7 +10,7 @@ from typing import Optional, Callable, Tuple, TYPE_CHECKING
 from services.interfaces import ITokenService, IConfigRepository, IRemoteConfigRepository
 
 if TYPE_CHECKING:
-    pass
+    from repositories.json_config_repository import JsonConfigRepository
 
 logger = logging.getLogger("openclaw_proxy")
 
@@ -29,16 +29,19 @@ class TokenService(ITokenService):
         self,
         config_repo: IConfigRepository,
         remote_config_repo: IRemoteConfigRepository,
+        json_config_repo: Optional["JsonConfigRepository"] = None,
     ):
         """
         初始化Token服务
 
         Args:
-            config_repo: 配置仓库
+            config_repo: 配置仓库（旧版，用于兼容）
             remote_config_repo: 远程配置仓库
+            json_config_repo: JSON配置仓库（用于多服务器支持）
         """
         self._config_repo = config_repo
         self._remote_config_repo = remote_config_repo
+        self._json_config_repo = json_config_repo
         self._token: Optional[str] = None
 
     @property
@@ -55,24 +58,48 @@ class TokenService(ITokenService):
         """
         return self._token
 
-    def fetch_token_sync(self) -> Tuple[bool, str]:
+    def fetch_token_sync(self, server_id: Optional[str] = None) -> Tuple[bool, str]:
         """
         同步获取token
+
+        Args:
+            server_id: 服务器ID，None则使用默认服务器
 
         Returns:
             (是否成功, token或错误信息)
         """
-        config = self._config_repo.load()
+        # 获取服务器配置
+        if self._json_config_repo and server_id:
+            # 使用多服务器配置
+            multi_config = self._json_config_repo.load_multi()
+            server = multi_config.get_server_by_id(server_id)
+            if not server:
+                logger.warning(f"[Token] 服务器不存在: {server_id}")
+                return False, f"服务器不存在: {server_id}"
 
-        logger.info("[Token] 开始获取token...")
-        logger.debug(f"[Token] 远程配置路径: {config.browser.remote_config_path}")
+            ssh_config = server.ssh
+            key_path = multi_config.global_config.keygen.key_path
+            remote_config_path = (
+                server.browser.token.remote_config_path
+                if server.browser and server.browser.token
+                else "~/.openclaw/openclaw.json"
+            )
+        else:
+            # 使用旧版配置（兼容）
+            config = self._config_repo.load()
+            ssh_config = config.ssh
+            key_path = config.ssh.key_path
+            remote_config_path = config.browser.remote_config_path
+
+        logger.info(f"[Token] 开始获取token (server_id={server_id})...")
+        logger.debug(f"[Token] 远程配置路径: {remote_config_path}")
 
         success, remote_config, error = self._remote_config_repo.fetch(
-            host=config.ssh.host,
-            port=config.ssh.port,
-            user=config.ssh.user,
-            key_path=config.ssh.key_path,
-            remote_path=config.browser.remote_config_path,
+            host=ssh_config.host,
+            port=ssh_config.port,
+            user=ssh_config.user,
+            key_path=key_path,
+            remote_path=remote_config_path,
         )
 
         if not success:
@@ -90,16 +117,21 @@ class TokenService(ITokenService):
             logger.warning(f"[Token] 提取token失败: {token_or_error}")
             return False, token_or_error
 
-    def fetch_token_async(self, callback: Callable[[bool, str], None]) -> None:
+    def fetch_token_async(
+        self,
+        callback: Callable[[bool, str], None],
+        server_id: Optional[str] = None,
+    ) -> None:
         """
         异步获取token
 
         Args:
             callback: 回调函数，参数为(是否成功, token或错误信息)
+            server_id: 服务器ID，None则使用默认服务器
         """
 
         def do_fetch():
-            success, token = self.fetch_token_sync()
+            success, token = self.fetch_token_sync(server_id)
             callback(success, token if success else "")
 
         threading.Thread(target=do_fetch, daemon=True).start()

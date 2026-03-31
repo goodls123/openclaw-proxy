@@ -17,7 +17,8 @@
       "Bash(python -m pytest tests/test_repositories/test_config_repository.py -v --tb=short)",
       "Bash(python -m pytest tests/test_services/test_token_service.py -v --tb=short)",
       "Bash(python -m pytest tests/ -v --tb=short -k \"config\")",
-      "mcp__zai-mcp-server__diagnose_error_screenshot"
+      "mcp__zai-mcp-server__diagnose_error_screenshot",
+      "Bash(python -m pytest tests/test_services/test_token_service.py -v)"
     ]
   }
 }

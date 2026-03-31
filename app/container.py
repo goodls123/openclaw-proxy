@@ -75,10 +75,16 @@ class ServiceContainer:
         """获取Token服务"""
         if self._token_service is None:
             from services.token_service import TokenService
+            from repositories.json_config_repository import JsonConfigRepository
+            import os
+
+            config_dir = os.path.dirname(self.config_repo._config_file)
+            json_repo = JsonConfigRepository(config_dir)
 
             self._token_service = TokenService(
                 self.config_repo,
                 self.remote_config_repo,
+                json_repo,
             )
         return self._token_service
 

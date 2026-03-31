@@ -223,7 +223,7 @@ class MainPresenter(BasePresenter):
         def do_open():
             # 如果没有token，先获取
             if not self.token_service.token:
-                success, _ = self.token_service.fetch_token_sync()
+                success, _ = self.token_service.fetch_token_sync(server_id)
                 if not success:
                     if on_complete:
                         self._update_ui(on_complete, False)
